@@ -37,11 +37,36 @@ This is a fully interactive prototype demonstrating the core user experience.
 # Install dependencies
 npm install
 
-# Run locally
+# Run locally (uses in-repo fixtures)
 npm run dev
 ```
 
 Then open [http://localhost:5173/mindsten-prototype/](http://localhost:5173/mindsten-prototype/) in your browser.
+
+### Connect to Supabase (optional)
+
+The app runs against typed fixtures in `src/data/` by default, so nothing is
+required to get started. To read from a real Postgres database instead:
+
+1. Create a Supabase project (EU region recommended for GDPR).
+2. In the Supabase SQL editor, run `supabase/migrations/0001_init.sql`
+   followed by `supabase/seed.sql`.
+3. Copy `.env.example` to `.env.local` and fill in `VITE_SUPABASE_URL` and
+   `VITE_SUPABASE_ANON_KEY` from Project Settings → API.
+4. Restart `npm run dev`.
+
+If the env vars are missing or Supabase errors out, the app silently falls
+back to the fixtures — so the GitHub Pages demo keeps working either way.
+See `supabase/README.md` for details.
+
+### Scripts
+
+- `npm run dev` — Vite dev server
+- `npm run build` — typecheck + production build
+- `npm run typecheck` — TypeScript only
+- `npm run test` — Vitest smoke tests
+- `npm run lint` — ESLint
+- `npm run format` — Prettier write
 
 ---
 
@@ -125,13 +150,29 @@ Then in your repo settings → **Pages** → Source: **GitHub Actions**.
 
 ```
 mindsten-prototype/
-├── index.html            # Entry HTML
-├── package.json          # Dependencies & scripts
-├── vite.config.js        # Vite config (set base path here)
-├── src/
-│   ├── main.jsx          # React entry point
-│   └── App.jsx           # Full prototype (all screens)
-└── public/               # Static assets
+├── index.html              # Entry HTML
+├── package.json            # Dependencies & scripts
+├── tsconfig.json           # TypeScript config
+├── vite.config.ts          # Vite + Vitest config
+├── .env.example            # Template for VITE_SUPABASE_* vars
+├── supabase/
+│   ├── migrations/         # SQL schema (0001_init.sql)
+│   ├── seed.sql            # Idempotent seed for 4 reference persons
+│   └── README.md           # Backend setup notes
+└── src/
+    ├── main.tsx            # React entry + BrowserRouter
+    ├── App.tsx             # Routes + phone-frame shell
+    ├── types/              # Person, ThemedRoute, …
+    ├── data/               # PERSONS, ROUTES fixtures (fallback)
+    ├── lib/
+    │   ├── api.ts          # Supabase-first, fixture fallback
+    │   ├── supabase.ts     # Client singleton
+    │   ├── mappers.ts      # DB row → domain type
+    │   └── onboarding.ts   # localStorage flag
+    ├── components/         # Icons, TabBar, ErrorBoundary, StatePanel, …
+    ├── pages/              # One component per route
+    ├── styles/global.css   # Extracted global styles
+    └── __tests__/          # Vitest smoke tests
 ```
 
 ---
