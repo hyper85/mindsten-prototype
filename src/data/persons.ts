@@ -1,0 +1,108 @@
+import type { Person } from '../types';
+
+export const PERSONS: Person[] = [
+  {
+    id: 1,
+    name: 'H.C. Andersen',
+    born: '2. april 1805',
+    died: '4. august 1875',
+    profession: 'Forfatter',
+    cemetery: 'Assistens Kirkegård',
+    city: 'København',
+    confidence: 97,
+    shortBio:
+      "Verdens mest elskede eventyrdigter. Hans eventyr som 'Den Grimme Ælling', 'Den Lille Havfrue' og 'Kejserens Nye Klæder' er oversat til over 125 sprog.",
+    fullBio:
+      'Hans Christian Andersen blev født i Odense i fattige kår og rejste som 14-årig til København for at søge lykken. Efter år med modgang brød han igennem som forfatter og blev en af verdenshistoriens mest oversatte forfattere. Hans eventyr kombinerede folkelig fortælletradition med dyb menneskelig indsigt og blev elsket af både børn og voksne verden over.',
+    timeline: [
+      { year: 1805, event: 'Født i Odense' },
+      { year: 1819, event: 'Rejser til København' },
+      { year: 1835, event: "Udgiver 'Eventyr, fortalte for Børn'" },
+      { year: 1843, event: "'Den Grimme Ælling' udkommer" },
+      { year: 1875, event: 'Dør i København, 70 år' },
+    ],
+    era: 'Guldalderen',
+    eraYears: '1800-tallet',
+    timeWindowTitle: 'København i Guldalderen',
+    sources: ['Dansk Biografisk Leksikon', 'Rigsarkivet', 'H.C. Andersen Centret'],
+    category: 'writers',
+  },
+  {
+    id: 2,
+    name: 'Søren Kierkegaard',
+    born: '5. maj 1813',
+    died: '11. november 1855',
+    profession: 'Filosof',
+    cemetery: 'Assistens Kirkegård',
+    city: 'København',
+    confidence: 94,
+    shortBio:
+      'Eksistentialismens fader. Hans filosofi om angst, fortvivlelse og troens spring har formet moderne tænkning dybt.',
+    fullBio:
+      "Søren Aabye Kierkegaard var en dansk filosof, teolog og digter, der regnes som eksistentialismens grundlægger. Han udfordrede den etablerede kirke og Hegels filosofi med sine skrifter om individets ansvar og eksistens. Hans værker som 'Enten-Eller' og 'Begrebet Angest' er fundamentale tekster i vestlig filosofi.",
+    timeline: [
+      { year: 1813, event: 'Født i København' },
+      { year: 1840, event: 'Forlovet med Regine Olsen' },
+      { year: 1843, event: "'Enten-Eller' udgives" },
+      { year: 1849, event: "'Sygdommen til Døden'" },
+      { year: 1855, event: 'Dør i København, 42 år' },
+    ],
+    era: 'Guldalderen',
+    eraYears: '1800-tallet',
+    timeWindowTitle: 'Filosofiens København',
+    sources: ['Dansk Biografisk Leksikon', 'Søren Kierkegaard Forskningscenteret'],
+    category: 'science',
+  },
+  {
+    id: 3,
+    name: 'Niels Bohr',
+    born: '7. oktober 1885',
+    died: '18. november 1962',
+    profession: 'Fysiker',
+    cemetery: 'Assistens Kirkegård',
+    city: 'København',
+    confidence: 96,
+    shortBio:
+      'Nobelpristager i fysik. Grundlægger af atomfysikken og skaberen af Bohr-modellen for atomet.',
+    fullBio:
+      'Niels Henrik David Bohr var en dansk fysiker, der modtog Nobelprisen i fysik i 1922 for sin forskning i atomstruktur og kvantemekanik. Han grundlagde Institut for Teoretisk Fysik ved Københavns Universitet, som blev et internationalt centrum for fysisk forskning. Under Anden Verdenskrig flygtede han til Sverige og bidrog senere til det amerikanske Manhattan-projekt.',
+    timeline: [
+      { year: 1885, event: 'Født i København' },
+      { year: 1913, event: 'Bohr-modellen publiceres' },
+      { year: 1922, event: 'Modtager Nobelprisen' },
+      { year: 1943, event: 'Flugten til Sverige' },
+      { year: 1962, event: 'Dør i København, 77 år' },
+    ],
+    era: 'Det 20. århundrede',
+    eraYears: '1900-tallet',
+    timeWindowTitle: 'Atomfysikkens tidsalder',
+    sources: ['Dansk Biografisk Leksikon', 'Niels Bohr Arkivet', 'Nobelprize.org'],
+    category: 'science',
+  },
+  {
+    id: 4,
+    name: 'Niels Juel',
+    born: '8. maj 1629',
+    died: '8. april 1697',
+    profession: 'Admiral',
+    cemetery: 'Holmens Kirkegård',
+    city: 'København',
+    confidence: 91,
+    shortBio:
+      'Danmarks største flådehelt. Vandt Slaget i Køge Bugt i 1677, den danske flådes mest berømte sejr.',
+    fullBio:
+      'Niels Juel var en dansk admiral, der ledte den danske flåde til sejr i Skånske Krig. Hans taktiske geni i Slaget i Køge Bugt sikrede dansk kontrol over Østersøen og cementerede hans plads som Danmarks mest fejrede søhelt.',
+    timeline: [
+      { year: 1629, event: 'Født i Christiania (Oslo)' },
+      { year: 1656, event: 'Første søslag' },
+      { year: 1677, event: 'Slaget i Køge Bugt' },
+      { year: 1683, event: 'Udnævnt til Rigsadmiral' },
+      { year: 1697, event: 'Dør i København, 67 år' },
+    ],
+    era: 'Enevælden',
+    eraYears: '1600-tallet',
+    timeWindowTitle: 'Danmarks flådemagt',
+    sources: ['Dansk Biografisk Leksikon', 'Orlogsmuseet'],
+    category: 'naval',
+  },
+];
