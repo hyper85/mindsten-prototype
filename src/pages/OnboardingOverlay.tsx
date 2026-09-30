@@ -9,19 +9,19 @@ const STEPS = [
     icon: '🔍',
     cls: 'step0',
     title: 'Scan',
-    desc: 'Peg din kamera mod en gravsten — vi fortæller dig hvem der ligger begravet.',
+    desc: 'Peg kameraet mod en gravsten — så fortæller vi, hvem der ligger begravet.',
   },
   {
-    icon: '🎬',
+    icon: '⏳',
     cls: 'step1',
     title: 'Tidsvindue',
-    desc: 'Se kuraterede videoer der bringer fortiden til live på stedet.',
+    desc: 'Oplev tiden, personen levede i — konger, krige, opfindelser og hverdagsliv.',
   },
   {
     icon: '🗺️',
     cls: 'step2',
     title: 'Udforsk',
-    desc: 'Følg temaruter og opdag historien i dit nærområde.',
+    desc: 'Find kendte danskeres grave på kortet, og følg temaruter på kirkegården.',
   },
 ] as const;
 

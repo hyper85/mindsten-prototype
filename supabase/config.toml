@@ -1,0 +1,18 @@
+# Supabase CLI configuration. Only the settings MindSTEN depends on are listed;
+# everything else uses CLI defaults.
+project_id = "mindsten"
+
+[db]
+major_version = 17
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+# Both functions are called from the browser with the anon/publishable key.
+# They do their own input validation and per-IP rate limiting (rate_limits table).
+[functions.scan-gravestone]
+verify_jwt = false
+
+[functions.era-story]
+verify_jwt = false

@@ -3,27 +3,33 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "MindSTEN — Augmented heritage platform. Bring the past to life, one stone at a time.",
+  "description": "MindSTEN — peg på en gravsten og mød personen og tiden, de levede i.",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "npm run typecheck && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.scripts.json",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "test": "vitest run",
     "test:watch": "vitest",
-    "deploy": "npm run build && gh-pages -d dist"
+    "check:functions": "deno check --config supabase/functions/deno.json supabase/functions/*/index.ts",
+    "seed:generate": "tsx scripts/generate-seed.ts",
+    "import:wikidata": "tsx scripts/import-wikidata.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.0",
+    "leaflet": "^1.9.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-leaflet": "^4.2.1",
     "react-router-dom": "^6.26.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.4.8",
     "@testing-library/react": "^16.0.0",
+    "@types/leaflet": "^1.9.22",
+    "@types/node": "^22.20.4",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
@@ -32,11 +38,15 @@
     "eslint": "^8.57.0",
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-refresh": "^0.4.9",
-    "gh-pages": "^6.1.1",
     "jsdom": "^24.1.1",
     "prettier": "^3.3.3",
+    "tsx": "^4.23.15",
     "typescript": "^5.5.4",
     "vite": "^5.4.0",
+    "vite-plugin-pwa": "^1.3.0",
     "vitest": "^2.0.5"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
