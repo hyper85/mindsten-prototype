@@ -13,7 +13,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg'],
+      includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'MindSTEN',
         short_name: 'MindSTEN',
@@ -23,16 +23,19 @@ export default defineConfig({
         scope: base,
         display: 'standalone',
         orientation: 'portrait',
-        background_color: '#0F0E0D',
-        theme_color: '#0F0E0D',
+        background_color: '#f5f3ee',
+        theme_color: '#f5f3ee',
         icons: [
           { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
           { src: 'icon-maskable.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
         ],
       },
       workbox: {
         navigateFallback: `${base}index.html`,
-        globPatterns: ['**/*.{js,css,html,svg,woff2}'],
+        // Fonts: precache only the latin subsets (Danish); others load on demand.
+        globPatterns: ['**/*.{js,css,html,svg,png}', '**/*-latin-*.woff2'],
         runtimeCaching: [
           {
             // Map tiles: keep what the visitor has seen, for spotty signal at the cemetery.
@@ -44,11 +47,6 @@ export default defineConfig({
             urlPattern: /^https:\/\/commons\.wikimedia\.org\/.*/,
             handler: 'CacheFirst',
             options: { cacheName: 'portraits', expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 } },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/,
-            handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'fonts' },
           },
         ],
       },

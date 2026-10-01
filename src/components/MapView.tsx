@@ -1,6 +1,7 @@
 import 'leaflet/dist/leaflet.css';
 import { useEffect, useMemo } from 'react';
 import {
+  AttributionControl,
   CircleMarker,
   MapContainer,
   TileLayer,
@@ -91,8 +92,9 @@ export default function MapView({ persons, center, zoom, user, focusId, onSelect
       zoom={zoom}
       preferCanvas
       zoomControl={false}
-      attributionControl
+      attributionControl={false}
     >
+      <AttributionControl position="topright" prefix={false} />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url={import.meta.env.VITE_MAP_TILE_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'}
@@ -103,21 +105,21 @@ export default function MapView({ persons, center, zoom, user, focusId, onSelect
       {groups.map((g) => {
         const focused = g.persons.some((p) => p.id === focusId);
         const count = g.persons.length;
-        const highlight = g.persons.some((p) => p.confidence >= 85);
+        const notable = g.persons.some((p) => p.confidence >= 85);
         return (
           <CircleMarker
             key={g.key}
             center={[g.lat, g.lng]}
-            radius={Math.min(7 + Math.sqrt(count) * 3, 22) + (focused ? 3 : 0)}
+            radius={Math.min(8 + Math.sqrt(count) * 3, 22) + (focused ? 3 : 0)}
             pathOptions={{
-              color: focused ? '#EBD9A5' : '#0F0E0D',
-              weight: 2,
-              fillColor: highlight ? '#C9A84C' : '#6B9E73',
-              fillOpacity: 0.95,
+              color: focused ? '#a87824' : '#ffffff',
+              weight: focused ? 4 : 3,
+              fillColor: notable ? '#2d6a4f' : '#5f9a7c',
+              fillOpacity: 1,
             }}
             eventHandlers={{ click: () => onSelect(g.persons) }}
           >
-            <Tooltip direction="top" offset={[0, -6]}>
+            <Tooltip direction="top" offset={[0, -8]}>
               {count === 1
                 ? g.persons[0].name
                 : `${g.persons[0].cemetery || 'Grave'} · ${count} personer`}
@@ -129,7 +131,7 @@ export default function MapView({ persons, center, zoom, user, focusId, onSelect
         <CircleMarker
           center={[user.lat, user.lng]}
           radius={8}
-          pathOptions={{ color: '#fff', weight: 3, fillColor: '#4A90E2', fillOpacity: 1 }}
+          pathOptions={{ color: '#fff', weight: 3, fillColor: '#2f6fdb', fillOpacity: 1 }}
         />
       )}
     </MapContainer>

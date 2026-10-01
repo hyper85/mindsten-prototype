@@ -33,7 +33,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="state-panel-text">
               Der opstod en uventet fejl. Prøv at genindlæse skærmen.
             </div>
-            <button className="state-panel-action" onClick={this.handleReset}>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={this.handleReset}>
               Prøv igen
             </button>
           </div>

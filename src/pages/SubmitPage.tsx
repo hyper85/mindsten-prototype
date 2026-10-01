@@ -1,6 +1,8 @@
+import { CircleCheck } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { PageHeader } from '../components/PageHeader';
+import { NavBar, Page } from '../components/Layout';
+import { EmptyState } from '../components/StatePanel';
 import { submitGrave } from '../lib/api';
 import { getCurrentPosition } from '../lib/geo';
 
@@ -22,6 +24,7 @@ export function SubmitPage() {
     inscription?: string;
     correctionFor?: number;
   };
+  const isCorrection = Boolean(state.correctionFor);
   const [name, setName] = useState(state.prefill?.name ?? '');
   const [birthYear, setBirthYear] = useState(
     state.prefill?.birthYear ? String(state.prefill.birthYear) : '',
@@ -31,20 +34,20 @@ export function SubmitPage() {
   );
   const [cemetery, setCemetery] = useState('');
   const [note, setNote] = useState(
-    state.correctionFor
+    isCorrection
       ? `Rettelse til person #${state.correctionFor}: `
       : state.inscription
         ? `Indskrift: ${state.inscription}`
         : '',
   );
-  const [useLocationToo, setUseLocationToo] = useState(true);
+  const [attachLocation, setAttachLocation] = useState(!isCorrection);
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'offline' | 'failed'>('idle');
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (name.trim().length < 2) return;
     setStatus('sending');
-    const coords = useLocationToo ? await getCurrentPosition(6000) : null;
+    const coords = attachLocation ? await getCurrentPosition(6000) : null;
     const result = await submitGrave({
       name: name.trim(),
       birthYear: toYear(birthYear),
@@ -59,97 +62,122 @@ export function SubmitPage() {
 
   if (status === 'sent') {
     return (
-      <div className="profile-screen">
-        <PageHeader title="Tak!" />
-        <div className="state-panel">
-          <div className="state-panel-title">Tak for dit bidrag</div>
-          <div className="state-panel-text">
-            En redaktør kigger på det, før det bliver synligt i appen.
-          </div>
-          <button type="button" className="state-panel-action" onClick={() => navigate('/home')}>
-            Til forsiden
-          </button>
-        </div>
-      </div>
+      <>
+        <NavBar />
+        <EmptyState
+          icon={<CircleCheck color="var(--tint)" />}
+          title="Tak for dit bidrag"
+          description="En redaktør kigger på det, før det bliver synligt i appen."
+          actionLabel="Til forsiden"
+          onAction={() => navigate('/home')}
+        />
+      </>
     );
   }
 
   return (
-    <div className="profile-screen">
-      <PageHeader title={state.correctionFor ? 'Foreslå rettelse' : 'Tilføj en grav'} />
-      <form className="form" onSubmit={onSubmit}>
-        <p className="bio-text">
-          Vi viser kun personer, der har været døde i mindst 10 år, og som har offentlig interesse.
-          Skriv kun, hvad der står på stenen eller i offentlige kilder.
+    <>
+      <NavBar title={isCorrection ? 'Foreslå rettelse' : 'Tilføj en grav'} staticTitle />
+      <Page>
+        <p className="muted" style={{ fontSize: 15, lineHeight: 1.5, margin: '8px 4px 20px' }}>
+          {isCorrection
+            ? 'Fortæl os, hvad der er forkert, og gerne hvor du har oplysningen fra.'
+            : 'Vi viser personer, der har været døde i mindst 10 år og har offentlig interesse. Skriv det, der står på stenen eller i offentlige kilder.'}
         </p>
-        <label>
-          Navn på stenen
-          <input
-            required
-            minLength={2}
-            maxLength={200}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-        </label>
-        <div className="form-row">
-          <label>
-            Født (år)
-            <input
-              inputMode="numeric"
-              pattern="[0-9]{3,4}"
-              value={birthYear}
-              onChange={(e) => setBirthYear(e.target.value)}
-            />
-          </label>
-          <label>
-            Død (år)
-            <input
-              inputMode="numeric"
-              pattern="[0-9]{3,4}"
-              value={deathYear}
-              onChange={(e) => setDeathYear(e.target.value)}
-            />
-          </label>
-        </div>
-        <label>
-          Kirkegård
-          <input
-            maxLength={200}
-            value={cemetery}
-            onChange={(e) => setCemetery(e.target.value)}
-            placeholder="Fx Assistens Kirkegård"
-          />
-        </label>
-        <label>
-          Noter og kilder
-          <textarea
-            maxLength={2000}
-            rows={4}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-        </label>
-        <label className="checkbox">
-          <input
-            type="checkbox"
-            checked={useLocationToo}
-            onChange={(e) => setUseLocationToo(e.target.checked)}
-          />
-          Vedhæft min nuværende placering (hjælper os med at finde graven)
-        </label>
-        {status === 'offline' && (
-          <div className="inline-note">
-            Appen kører uden server, så bidrag kan ikke sendes endnu.
+        <form className="form" onSubmit={onSubmit}>
+          <div className="list">
+            <div className="field">
+              <label htmlFor="f-name">Navn på stenen</label>
+              <input
+                id="f-name"
+                required
+                minLength={2}
+                maxLength={200}
+                value={name}
+                placeholder="Fx Ane Marie Hansen"
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+            <div className="field-row">
+              <div className="field">
+                <label htmlFor="f-born">Født (år)</label>
+                <input
+                  id="f-born"
+                  inputMode="numeric"
+                  pattern="[0-9]{3,4}"
+                  placeholder="1850"
+                  value={birthYear}
+                  onChange={(e) => setBirthYear(e.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="f-died">Død (år)</label>
+                <input
+                  id="f-died"
+                  inputMode="numeric"
+                  pattern="[0-9]{3,4}"
+                  placeholder="1920"
+                  value={deathYear}
+                  onChange={(e) => setDeathYear(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="field">
+              <label htmlFor="f-cemetery">Kirkegård</label>
+              <input
+                id="f-cemetery"
+                maxLength={200}
+                value={cemetery}
+                placeholder="Fx Assistens Kirkegård"
+                onChange={(e) => setCemetery(e.target.value)}
+              />
+            </div>
           </div>
-        )}
-        {status === 'failed' && (
-          <div className="inline-note">Noget gik galt. Prøv igen om lidt.</div>
-        )}
-        <button type="submit" className="primary-btn" disabled={status === 'sending'}>
-          {status === 'sending' ? 'Sender…' : 'Send forslag'}
-        </button>
-      </form>
-    </div>
+
+          <div className="list">
+            <div className="field">
+              <label htmlFor="f-note">Noter og kilder</label>
+              <textarea
+                id="f-note"
+                maxLength={2000}
+                rows={4}
+                value={note}
+                placeholder="Hvad ved du om personen?"
+                onChange={(e) => setNote(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="list">
+            <label className="toggle-row">
+              <span>
+                Vedhæft min placering
+                <small>Hjælper os med at finde graven</small>
+              </span>
+              <input
+                type="checkbox"
+                className="toggle"
+                checked={attachLocation}
+                onChange={(e) => setAttachLocation(e.target.checked)}
+              />
+            </label>
+          </div>
+
+          {status === 'offline' && (
+            <p className="footnote center">
+              Appen kører uden server, så bidrag kan ikke sendes endnu.
+            </p>
+          )}
+          {status === 'failed' && (
+            <p className="footnote center" style={{ color: 'var(--danger)' }}>
+              Noget gik galt. Prøv igen om lidt.
+            </p>
+          )}
+          <button type="submit" className="btn btn-primary" disabled={status === 'sending'}>
+            {status === 'sending' ? 'Sender…' : 'Send forslag'}
+          </button>
+        </form>
+      </Page>
+    </>
   );
 }

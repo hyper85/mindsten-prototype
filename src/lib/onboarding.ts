@@ -17,3 +17,13 @@ export function markOnboardingComplete(): void {
     /* storage unavailable — ignore */
   }
 }
+
+/** Shows the welcome screen again on next load (from Profile). */
+export function resetOnboarding(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* storage unavailable — ignore */
+  }
+}

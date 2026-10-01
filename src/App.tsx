@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { DeskIntro } from './components/DeskIntro';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TabBar } from './components/TabBar';
+import { Toaster } from './components/Toaster';
 import { hasCompletedOnboarding, markOnboardingComplete } from './lib/onboarding';
 import { AboutPage } from './pages/AboutPage';
 import { CemeteryPage } from './pages/CemeteryPage';
@@ -19,7 +21,7 @@ import { TimeWindowPage } from './pages/TimeWindowPage';
 export default function App() {
   const [onboarded, setOnboarded] = useState(() => hasCompletedOnboarding());
   const { pathname } = useLocation();
-  const screenRef = useRef<HTMLDivElement | null>(null);
+  const screenRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (screenRef.current) screenRef.current.scrollTop = 0;
@@ -30,44 +32,42 @@ export default function App() {
     setOnboarded(true);
   };
 
-  const hideTabBar = pathname.startsWith('/scanner');
+  const immersive = pathname.startsWith('/scanner');
 
   return (
-    <div className="mindsten-root">
-      <div className="desktop-intro" aria-hidden="true">
-        <div className="hero-title">
-          Mind<span>STEN</span>
+    <div className="app-shell">
+      <DeskIntro />
+      <div className="device">
+        <div className={`device-screen ${immersive ? 'is-immersive' : ''}`}>
+          <div className="device-island" aria-hidden="true" />
+          <div className="status-spacer" />
+
+          {!onboarded && <OnboardingOverlay onDone={handleOnboardingDone} />}
+
+          <main className="screen" ref={screenRef}>
+            <ErrorBoundary key={pathname}>
+              <Routes>
+                <Route path="/" element={<Navigate to="/home" replace />} />
+                <Route path="/home" element={<HomePage />} />
+                <Route path="/scanner" element={<ScannerPage />} />
+                <Route path="/search" element={<SearchPage />} />
+                <Route path="/person/:id" element={<PersonPage />} />
+                <Route path="/person/:id/time-window" element={<TimeWindowPage />} />
+                <Route path="/cemetery/:id" element={<CemeteryPage />} />
+                <Route path="/route/:id" element={<RoutePage />} />
+                <Route path="/map" element={<MapPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/submit" element={<SubmitPage />} />
+                <Route path="/about" element={<AboutPage />} />
+                <Route path="*" element={<Navigate to="/home" replace />} />
+              </Routes>
+            </ErrorBoundary>
+          </main>
+
+          {onboarded && !immersive && <TabBar />}
+          <Toaster />
+          <div className="home-indicator" aria-hidden="true" />
         </div>
-        <div className="hero-sub">Bring fortiden til live, én sten ad gangen.</div>
-        <div className="hero-hint">Åbn siden på din telefon, når du står på kirkegården.</div>
-      </div>
-
-      <div className="phone-frame">
-        <div className="phone-notch" />
-
-        {!onboarded && <OnboardingOverlay onDone={handleOnboardingDone} />}
-
-        <main className="screen" ref={screenRef}>
-          <ErrorBoundary key={pathname}>
-            <Routes>
-              <Route path="/" element={<Navigate to="/home" replace />} />
-              <Route path="/home" element={<HomePage />} />
-              <Route path="/scanner" element={<ScannerPage />} />
-              <Route path="/search" element={<SearchPage />} />
-              <Route path="/person/:id" element={<PersonPage />} />
-              <Route path="/person/:id/time-window" element={<TimeWindowPage />} />
-              <Route path="/cemetery/:id" element={<CemeteryPage />} />
-              <Route path="/route/:id" element={<RoutePage />} />
-              <Route path="/map" element={<MapPage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/submit" element={<SubmitPage />} />
-              <Route path="/about" element={<AboutPage />} />
-              <Route path="*" element={<Navigate to="/home" replace />} />
-            </Routes>
-          </ErrorBoundary>
-        </main>
-
-        {onboarded && !hideTabBar && <TabBar />}
       </div>
     </div>
   );

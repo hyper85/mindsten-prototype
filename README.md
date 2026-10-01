@@ -26,6 +26,13 @@ personer med kendt gravsted i Danmark fra Wikidata og dansk Wikipedia.
 Appen er en PWA: den kan lægges på hjemmeskærmen, og kort og portrætter caches til dårlig dækning på
 kirkegården.
 
+## Design
+
+Lyst, roligt og inspireret af Apples apps: varm kalkstensbaggrund, hvide kort, mosgrøn som eneste
+handlingsfarve og varm guld til Tidsvinduet. Skrifttyperne er **Inter** (tekst) og **Newsreader**
+(overskrifter) – hostet i appen selv, så de virker offline og ikke sender data til Google.
+Se skill'en `design-system` for farver, komponenter og mønstre.
+
 ## Arkitektur
 
 ```
@@ -84,7 +91,7 @@ Se [`.claude/skills/deploy/SKILL.md`](.claude/skills/deploy/SKILL.md). Kort fort
 
 ## Claude-skills i repoet
 
-`deploy` · `import-persons` · `add-person` · `era-facts` · `scan-pipeline` · `verify-app`
+`deploy` · `import-persons` · `add-person` · `era-facts` · `scan-pipeline` · `design-system` · `verify-app`
 — se `.claude/skills/`. `CLAUDE.md` giver overblikket.
 
 ---

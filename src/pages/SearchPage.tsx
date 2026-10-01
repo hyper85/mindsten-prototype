@@ -1,14 +1,32 @@
+import { Church, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Icons } from '../components/Icons';
-import { PersonListItem } from '../components/PersonListItem';
-import { LoadingState } from '../components/StatePanel';
+import { CATEGORY_STYLE } from '../lib/categories';
+import { LargeTitle, Page, Section } from '../components/Layout';
+import { List, Row } from '../components/List';
+import { PersonRow } from '../components/PersonRow';
+import { EmptyState, LoadingState } from '../components/StatePanel';
 import { getCemeteries, getPersons, searchPersons } from '../lib/api';
 import { CATEGORY_META, PERSON_CATEGORIES } from '../lib/format';
 import type { Cemetery, Person, PersonCategory } from '../types';
 
 function normalize(s: string) {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+function CemeteryRow({ cemetery }: { cemetery: Cemetery }) {
+  return (
+    <Row
+      leading={
+        <span className="icon-square" style={{ background: '#8a7d68' }}>
+          <Church aria-hidden="true" />
+        </span>
+      }
+      title={cemetery.name}
+      subtitle={cemetery.city}
+      to={`/cemetery/${cemetery.id}`}
+    />
+  );
 }
 
 export function SearchPage() {
@@ -27,7 +45,7 @@ export function SearchPage() {
       .catch(() => setCemeteries([]));
   }, []);
 
-  // Debounced search / category browse.
+  // Debounced search / category browse; keep the URL shareable.
   useEffect(() => {
     let cancelled = false;
     const q = query.trim();
@@ -45,9 +63,9 @@ export function SearchPage() {
       const found =
         q.length >= 2
           ? await searchPersons(q, 50)
-          : await getPersons({ category: category ?? undefined, limit: 100 });
+          : await getPersons({ category: category ?? undefined, limit: 200 });
       if (!cancelled) setResults(category ? found.filter((p) => p.category === category) : found);
-    }, 250);
+    }, 220);
     return () => {
       cancelled = true;
       clearTimeout(handle);
@@ -63,104 +81,107 @@ export function SearchPage() {
   const browsing = query.trim().length < 2 && !category;
 
   return (
-    <div className="home-screen">
-      <div className="greeting" style={{ marginTop: 8 }}>
-        Søg
-      </div>
+    <Page>
+      <LargeTitle title="Søg" />
       <div className="search-field">
-        <span style={{ color: 'var(--stone-500)' }}>{Icons.search}</span>
+        <Search aria-hidden="true" />
         <input
-          autoFocus
           type="search"
           placeholder="Navn, fx Karen Blixen"
           aria-label="Søg efter person eller kirkegård"
           value={query}
+          enterKeyHint="search"
           onChange={(e) => setQuery(e.target.value)}
         />
-      </div>
-
-      <div className="chip-row" style={{ marginBottom: 16 }}>
-        {PERSON_CATEGORIES.map((c) => (
+        {query && (
           <button
-            key={c}
             type="button"
-            className={`map-filter-chip ${category === c ? 'active' : ''}`}
-            aria-pressed={category === c}
-            onClick={() => setCategory(category === c ? null : c)}
+            className="search-clear"
+            aria-label="Ryd søgning"
+            onClick={() => setQuery('')}
           >
-            {CATEGORY_META[c].emoji} {CATEGORY_META[c].label}
+            <X aria-hidden="true" />
           </button>
-        ))}
+        )}
       </div>
 
-      {matchingCemeteries.length > 0 && (
-        <>
-          <div className="section-label">Kirkegårde</div>
-          {matchingCemeteries.map((c) => (
-            <div
-              key={c.id}
-              role="button"
-              tabIndex={0}
-              className="nearby-card"
-              onClick={() => navigate(`/cemetery/${c.id}`)}
-              onKeyDown={(e) => e.key === 'Enter' && navigate(`/cemetery/${c.id}`)}
-            >
-              <div className="nearby-avatar">⛪</div>
-              <div className="nearby-info">
-                <div className="nearby-name">{c.name}</div>
-                <div className="nearby-meta">{c.city}</div>
-              </div>
-            </div>
-          ))}
-        </>
+      {category && (
+        <div className="chips" style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            className="chip"
+            aria-pressed="true"
+            onClick={() => setCategory(null)}
+            aria-label={`Fjern filter ${CATEGORY_META[category].label}`}
+          >
+            {CATEGORY_META[category].label}
+            <X aria-hidden="true" />
+          </button>
+        </div>
       )}
 
       {browsing ? (
         <>
-          <div className="section-label">Kirkegårde med kendte grave</div>
-          {cemeteries.slice(0, 12).map((c) => (
-            <div
-              key={c.id}
-              role="button"
-              tabIndex={0}
-              className="nearby-card"
-              onClick={() => navigate(`/cemetery/${c.id}`)}
-              onKeyDown={(e) => e.key === 'Enter' && navigate(`/cemetery/${c.id}`)}
-            >
-              <div className="nearby-avatar">⛪</div>
-              <div className="nearby-info">
-                <div className="nearby-name">{c.name}</div>
-                <div className="nearby-meta">{c.city}</div>
-              </div>
+          <Section title="Gennemse">
+            <div className="cat-grid">
+              {PERSON_CATEGORIES.map((c) => {
+                const { icon: Icon, color, soft } = CATEGORY_STYLE[c];
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    className="cat-tile"
+                    style={{ background: soft }}
+                    onClick={() => setCategory(c)}
+                  >
+                    <Icon aria-hidden="true" style={{ color }} />
+                    {CATEGORY_META[c].label}
+                  </button>
+                );
+              })}
             </div>
-          ))}
+          </Section>
+          {cemeteries.length > 0 && (
+            <Section title="Kirkegårde">
+              <List inset={58}>
+                {cemeteries.slice(0, 12).map((c) => (
+                  <CemeteryRow key={c.id} cemetery={c} />
+                ))}
+              </List>
+            </Section>
+          )}
         </>
-      ) : !results ? (
-        <LoadingState label="Søger…" />
-      ) : results.length === 0 ? (
-        <div className="state-panel">
-          <div className="state-panel-title">Ingen resultater</div>
-          <div className="state-panel-text">
-            Kender du graven? Tilføj den, så andre kan finde den.
-          </div>
-          <button
-            type="button"
-            className="state-panel-action"
-            onClick={() => navigate('/submit', { state: { prefill: { name: query } } })}
-          >
-            Tilføj en grav
-          </button>
-        </div>
       ) : (
         <>
-          <div className="section-label">
-            {results.length} {results.length === 1 ? 'person' : 'personer'}
-          </div>
-          {results.map((p) => (
-            <PersonListItem key={p.id} person={p} />
-          ))}
+          {matchingCemeteries.length > 0 && (
+            <Section title="Kirkegårde">
+              <List inset={58}>
+                {matchingCemeteries.map((c) => (
+                  <CemeteryRow key={c.id} cemetery={c} />
+                ))}
+              </List>
+            </Section>
+          )}
+          {!results ? (
+            <LoadingState label="Søger…" />
+          ) : results.length === 0 ? (
+            <EmptyState
+              title="Ingen resultater"
+              description="Kender du graven? Tilføj den, så andre kan finde den."
+              actionLabel="Tilføj en grav"
+              onAction={() => navigate('/submit', { state: { prefill: { name: query } } })}
+            />
+          ) : (
+            <Section title={`${results.length} ${results.length === 1 ? 'person' : 'personer'}`}>
+              <List inset={72}>
+                {results.map((p) => (
+                  <PersonRow key={p.id} person={p} />
+                ))}
+              </List>
+            </Section>
+          )}
         </>
       )}
-    </div>
+    </Page>
   );
 }

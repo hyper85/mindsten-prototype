@@ -1,41 +1,65 @@
+import { Camera, ChevronRight, Clock, Footprints, LocateFixed, MapPin, Plus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Icons } from '../components/Icons';
-import { PersonListItem } from '../components/PersonListItem';
+import { Link, useNavigate } from 'react-router-dom';
+import { CategoryIcon } from '../components/CategoryIcon';
+import { ScanIllustration } from '../components/Illustrations';
+import { LargeTitle, Page, Section } from '../components/Layout';
+import { List, Row } from '../components/List';
+import { PersonRow } from '../components/PersonRow';
 import { EmptyState, LoadingState } from '../components/StatePanel';
 import { getNearbyPersons, getPersons, getRoutes, type NearbyPerson } from '../lib/api';
+import { formatToday, greeting } from '../lib/format';
 import { useGeolocation } from '../lib/geo';
 import type { Person, ThemedRoute } from '../types';
 
-function greeting(date = new Date()): string {
-  const h = date.getHours();
-  if (h < 5) return 'God nat';
-  if (h < 10) return 'God morgen';
-  if (h < 12) return 'God formiddag';
-  if (h < 18) return 'God eftermiddag';
-  return 'God aften';
-}
-
 /** Persons born or died on today's day-of-month. */
-function onThisDay(
-  persons: Person[],
-  today = new Date(),
-): Array<{ person: Person; kind: 'født' | 'død' }> {
+function onThisDay(persons: Person[], today = new Date()) {
   const md = `-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  const hits: Array<{ person: Person; kind: 'født' | 'død' }> = [];
+  const hits: Array<{ person: Person; label: string }> = [];
   for (const person of persons) {
-    if (person.birthDate?.endsWith(md)) hits.push({ person, kind: 'født' });
-    else if (person.deathDate?.endsWith(md)) hits.push({ person, kind: 'død' });
+    if (person.birthDate?.endsWith(md))
+      hits.push({ person, label: `Født i dag i ${person.birthYear}` });
+    else if (person.deathDate?.endsWith(md))
+      hits.push({ person, label: `Døde i dag i ${person.deathYear}` });
   }
   return hits.slice(0, 3);
+}
+
+function LocationPrompt({ status, onLocate }: { status: string; onLocate: () => void }) {
+  const denied = status === 'denied' || status === 'unavailable';
+  return (
+    <div className="prompt-card">
+      <span className="icon-circle" aria-hidden="true">
+        <LocateFixed />
+      </span>
+      <div>
+        <div className="prompt-card-title">Hvem ligger begravet omkring dig?</div>
+        <p className="prompt-card-text">
+          {denied
+            ? 'Placering er slået fra. Slå den til i browserens indstillinger for at se grave i nærheden.'
+            : 'Brug din placering til at finde kendte grave i nærheden.'}
+        </p>
+        {!denied && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={onLocate}
+            disabled={status === 'locating'}
+          >
+            {status === 'locating' ? 'Finder dig…' : 'Brug min placering'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function HomePage() {
   const navigate = useNavigate();
   const { coords, status, locate } = useGeolocation();
   const [nearby, setNearby] = useState<NearbyPerson[] | null>(null);
-  const [routes, setRoutes] = useState<ThemedRoute[] | null>(null);
   const [featured, setFeatured] = useState<Person[]>([]);
+  const [routes, setRoutes] = useState<ThemedRoute[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -55,146 +79,142 @@ export function HomePage() {
   }, []);
 
   useEffect(() => {
-    // Wait for the geolocation attempt to settle before loading "nearby".
-    if (status === 'locating' || status === 'idle') return;
     let cancelled = false;
     getNearbyPersons(coords, 5, 2500)
-      .then((result) => {
-        if (!cancelled) setNearby(result);
-      })
-      .catch(() => {
-        if (!cancelled) setNearby([]);
-      });
+      .then((result) => !cancelled && setNearby(result))
+      .catch(() => !cancelled && setNearby([]));
     return () => {
       cancelled = true;
     };
-  }, [coords, status]);
+  }, [coords]);
 
   const today = useMemo(() => onThisDay(featured), [featured]);
   const first = nearby?.[0];
-  const here = first && first.distanceMeters !== null ? first.person : null;
+  const here =
+    first && first.distanceMeters !== null && first.distanceMeters < 600 ? first.person : null;
+  const nothingNearby = Boolean(coords && nearby && nearby.length === 0);
+  const list: NearbyPerson[] = nothingNearby
+    ? featured.slice(0, 5).map((person) => ({ person, distanceMeters: null }))
+    : (nearby ?? []);
 
   if (error) {
     return (
-      <div className="home-screen">
+      <Page>
         <EmptyState title="Kunne ikke indlæse" description={error} />
-      </div>
+      </Page>
     );
   }
 
   return (
-    <div className="home-screen">
-      <div className="greeting fade-up">{greeting()} 👋</div>
-      <div className="greeting-sub fade-up fade-up-d1">
-        {here ? `${here.cemetery} · ${here.city}` : 'Peg kameraet mod en gravsten og mød personen'}
-      </div>
-
-      <button
-        type="button"
-        className="hero-scan fade-up fade-up-d1"
-        onClick={() => navigate('/scanner')}
-      >
-        <span className="hero-scan-icon">{Icons.camera}</span>
-        <span>
-          <span className="hero-scan-title">Scan en gravsten</span>
-          <span className="hero-scan-sub">Navn, årstal og GPS finder personen</span>
-        </span>
-      </button>
-
-      <div className="section-label fade-up fade-up-d2" style={{ marginTop: 20 }}>
-        <span style={{ color: 'var(--moss-400)' }}>{Icons.pin}</span>
-        {coords ? 'I nærheden' : 'Kendte grave'}
-      </div>
-
-      {status === 'denied' || status === 'unavailable' ? (
-        <div className="inline-note">
-          Placering er slået fra — vi viser kendte grave i stedet.{' '}
-          <button type="button" className="link-btn" onClick={locate}>
-            Prøv igen
-          </button>
+    <Page>
+      <LargeTitle eyebrow={formatToday()} title={greeting()} />
+      {here && (
+        <div className="location-pill">
+          <MapPin aria-hidden="true" />
+          Du er ved {here.cemetery}
         </div>
-      ) : null}
-
-      {!nearby ? (
-        <LoadingState label={status === 'locating' ? 'Finder din placering…' : 'Indlæser…'} />
-      ) : nearby.length === 0 ? (
-        <EmptyState
-          title="Ingen kendte grave lige her"
-          description="Åbn kortet for at finde den nærmeste kirkegård med kendte personer."
-          actionLabel="Åbn kortet"
-          onAction={() => navigate('/map')}
-        />
-      ) : (
-        nearby.map((n, i) => (
-          <PersonListItem
-            key={n.person.id}
-            person={n.person}
-            distanceMeters={n.distanceMeters}
-            className={`fade-up fade-up-d${Math.min(i + 2, 5)}`}
-          />
-        ))
       )}
+
+      <div className="hero">
+        <ScanIllustration className="hero-art" />
+        <div className="eyebrow">Sådan virker det</div>
+        <h2 className="hero-title">Hvem ligger her?</h2>
+        <p className="hero-text">
+          Peg kameraet mod en gravsten. Vi læser navn og årstal – og fortæller historien om personen
+          og tiden, de levede i.
+        </p>
+        <button type="button" className="btn btn-primary" onClick={() => navigate('/scanner')}>
+          <Camera aria-hidden="true" />
+          Scan en gravsten
+        </button>
+        <button type="button" className="btn btn-plain" onClick={() => navigate('/search')}>
+          eller søg efter et navn
+        </button>
+      </div>
+
+      <Section
+        title={coords && !nothingNearby ? 'I nærheden' : 'Kendte grave'}
+        action={
+          <Link className="section-action" to="/map">
+            Se kort
+            <ChevronRight aria-hidden="true" />
+          </Link>
+        }
+        footer={
+          nothingNearby
+            ? 'Der er ingen kendte grave lige her – her er nogle af de mest kendte.'
+            : undefined
+        }
+      >
+        {status !== 'ok' && <LocationPrompt status={status} onLocate={locate} />}
+        {!nearby ? (
+          <LoadingState />
+        ) : (
+          <List inset={72}>
+            {list.map((n) => (
+              <PersonRow key={n.person.id} person={n.person} distanceMeters={n.distanceMeters} />
+            ))}
+          </List>
+        )}
+      </Section>
 
       {today.length > 0 && (
-        <>
-          <div className="section-label" style={{ marginTop: 24 }}>
-            På denne dag
+        <Section title="På denne dag">
+          <List inset={72}>
+            {today.map(({ person, label }) => (
+              <PersonRow key={person.id} person={person} subtitle={label} />
+            ))}
+          </List>
+        </Section>
+      )}
+
+      <Section title="Temaruter">
+        {!routes ? (
+          <LoadingState />
+        ) : (
+          <div className="rail">
+            {routes.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                className="route-card"
+                onClick={() => navigate(`/route/${r.id}`)}
+              >
+                <CategoryIcon category={r.category} size={36} />
+                <div>
+                  <div className="route-card-title">{r.title}</div>
+                  <div className="route-card-sub">{r.subtitle}</div>
+                </div>
+                <div className="meta">
+                  <span>
+                    <Clock aria-hidden="true" />
+                    {r.duration}
+                  </span>
+                  <span>
+                    <Footprints aria-hidden="true" />
+                    {r.distance}
+                  </span>
+                </div>
+              </button>
+            ))}
           </div>
-          {today.map(({ person, kind }) => (
-            <PersonListItem
-              key={person.id}
-              person={person}
-              badge={`${kind === 'født' ? 'Født' : 'Død'} ${kind === 'født' ? person.born : person.died}`}
-            />
-          ))}
-        </>
-      )}
+        )}
+      </Section>
 
-      <div className="section-label" style={{ marginTop: 24 }}>
-        Temaruter
-      </div>
-      {!routes ? (
-        <LoadingState />
-      ) : (
-        <div className="routes-scroll">
-          {routes.map((r) => (
-            <div
-              key={r.id}
-              className="route-card"
-              role="button"
-              tabIndex={0}
-              onClick={() => navigate(`/route/${r.id}`)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  navigate(`/route/${r.id}`);
-                }
-              }}
-            >
-              <div className="route-emoji">{r.emoji}</div>
-              <div className="route-title">{r.title}</div>
-              <div className="route-subtitle">{r.subtitle}</div>
-              <div className="route-details">
-                <span className="route-detail">
-                  {Icons.clock} {r.duration}
-                </span>
-                <span className="route-detail">
-                  {Icons.walk} {r.distance}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <button type="button" className="ghost-card" onClick={() => navigate('/submit')}>
-        {Icons.plus}
-        <span>
-          <strong>Mangler en grav?</strong>
-          <br />
-          Tilføj en person, så andre kan finde historien.
-        </span>
-      </button>
-    </div>
+      <Section>
+        <List>
+          <Row
+            leading={
+              <span className="icon-square" style={{ background: 'var(--tint)' }}>
+                <Plus aria-hidden="true" />
+              </span>
+            }
+            title="Mangler en grav?"
+            subtitle="Tilføj en person, så andre kan finde historien"
+            to="/submit"
+          />
+        </List>
+      </Section>
+    </Page>
   );
 }

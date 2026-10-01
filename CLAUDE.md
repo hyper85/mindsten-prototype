@@ -20,6 +20,11 @@ Starts with famous Danes (curated set + Wikidata import).
 - `supabase/migrations/` — idempotent SQL; `supabase/tests/` — plain-Postgres test harness.
 - `scripts/` — `generate-seed.ts`, `import-wikidata.ts` (run with `tsx`).
 
+## Design
+
+Light, calm, Apple-inspired UI — tokens in `src/styles/global.css`, components in `src/components/`,
+fonts Inter + Newsreader (self-hosted). Read `.claude/skills/design-system` before UI work.
+
 ## Conventions
 
 - UI text is Danish; code and comments English.
@@ -36,4 +41,4 @@ Starts with famous Danes (curated set + Wikidata import).
 
 ## Skills
 
-deploy · import-persons · add-person · era-facts · scan-pipeline · verify-app (in `.claude/skills/`).
+deploy · import-persons · add-person · era-facts · scan-pipeline · design-system · verify-app (in `.claude/skills/`).

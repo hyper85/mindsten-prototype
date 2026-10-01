@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Icons } from '../components/Icons';
-import { PersonListItem } from '../components/PersonListItem';
+import { Images, Search, X, Zap } from 'lucide-react';
+import { List } from '../components/List';
+import { PersonRow } from '../components/PersonRow';
 import { scanGravestone, ScanError } from '../lib/api';
 import { formatDistance } from '../lib/format';
 import { getCurrentPosition } from '../lib/geo';
@@ -157,134 +158,161 @@ export function ScannerPage() {
     .join(', ');
 
   return (
-    <div className="scanner-screen">
-      <div className="scanner-viewfinder">
-        <video ref={videoRef} className="scanner-video" playsInline muted aria-hidden="true" />
+    <div className="scanner">
+      <video ref={videoRef} className="scanner-video" playsInline muted aria-hidden="true" />
+      <div className="scanner-shade" />
 
-        <div className="scanner-top-bar">
+      <div className="scanner-top">
+        <button
+          type="button"
+          className="glass-btn"
+          aria-label="Luk scanner"
+          onClick={() => navigate('/home')}
+        >
+          <X aria-hidden="true" />
+        </button>
+        <div className="scanner-title">Scan gravsten</div>
+        {torchSupported ? (
           <button
             type="button"
-            className="scanner-icon-btn"
-            aria-label="Luk scanner"
-            onClick={() => navigate('/home')}
+            className={`glass-btn ${torch ? 'is-on' : ''}`}
+            aria-label={torch ? 'Sluk lygte' : 'Tænd lygte'}
+            aria-pressed={torch}
+            onClick={toggleTorch}
           >
-            {Icons.close}
+            <Zap aria-hidden="true" />
           </button>
-          {torchSupported && (
-            <button
-              type="button"
-              className={`scanner-icon-btn ${torch ? 'on' : ''}`}
-              aria-label={torch ? 'Sluk lygte' : 'Tænd lygte'}
-              onClick={toggleTorch}
-            >
-              {Icons.flash}
-            </button>
-          )}
-        </div>
-
-        {camera !== 'live' && camera !== 'starting' && (
-          <div className="scanner-fallback">
-            {camera === 'denied'
-              ? 'Kameraet er ikke tilladt. Giv adgang i browserens indstillinger — eller vælg et foto.'
-              : 'Kameraet er ikke tilgængeligt. Vælg et foto af gravstenen i stedet.'}
-          </div>
-        )}
-
-        <div className="scanner-bracket">
-          <div className="scanner-bracket-inner" style={{ position: 'absolute', inset: 0 }} />
-          {phase !== 'result' && <div className="scan-line" />}
-        </div>
-
-        <div className="scanner-hint">
-          {error ?? 'Placer gravstenen inden for rammen — navn og årstal skal kunne ses'}
-        </div>
-
-        <div className="scanner-controls">
-          <button
-            type="button"
-            className="scanner-side-btn"
-            aria-label="Vælg foto"
-            onClick={() => fileRef.current?.click()}
-          >
-            {Icons.upload}
-          </button>
-          <button
-            type="button"
-            className="shutter-btn"
-            aria-label="Scan gravsten"
-            onClick={captureFrame}
-            disabled={phase === 'processing'}
-          />
-          <button
-            type="button"
-            className="scanner-side-btn"
-            aria-label="Søg i stedet"
-            onClick={() => navigate('/search')}
-          >
-            {Icons.search}
-          </button>
-        </div>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          hidden
-          onChange={(e) => void onFile(e.target.files?.[0])}
-        />
-        {!isSupabaseConfigured && (
-          <div className="demo-pill">Demo-tilstand · ingen server tilknyttet</div>
+        ) : (
+          <span />
         )}
       </div>
 
+      {!isSupabaseConfigured && <div className="demo-pill">Demo – viser kendte grave</div>}
+
+      {camera !== 'live' && camera !== 'starting' && (
+        <div className="scanner-fallback">
+          {camera === 'denied'
+            ? 'Kameraet er ikke tilladt. Giv adgang i browserens indstillinger – eller vælg et foto af stenen.'
+            : 'Kameraet er ikke tilgængeligt. Vælg et foto af gravstenen i stedet.'}
+        </div>
+      )}
+
+      <div className={`frame ${phase === 'processing' ? 'is-busy' : ''}`} aria-hidden="true">
+        <i />
+        <i />
+        <i />
+        <i />
+      </div>
+
+      <div className={`scanner-hint ${error ? 'is-error' : ''}`} role={error ? 'alert' : undefined}>
+        {error ?? 'Placer gravstenen inden for rammen'}
+      </div>
+
+      <div className="scanner-controls">
+        <button
+          type="button"
+          className="glass-btn"
+          aria-label="Vælg foto"
+          onClick={() => fileRef.current?.click()}
+        >
+          <Images aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="shutter"
+          aria-label="Scan gravsten"
+          onClick={captureFrame}
+          disabled={phase === 'processing'}
+        >
+          <span />
+        </button>
+        <button
+          type="button"
+          className="glass-btn"
+          aria-label="Søg i stedet"
+          onClick={() => navigate('/search')}
+        >
+          <Search aria-hidden="true" />
+        </button>
+      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        hidden
+        onChange={(e) => void onFile(e.target.files?.[0])}
+      />
+
       {phase === 'processing' && (
-        <div className="processing-overlay" role="status" aria-live="polite">
-          <div className="spinner" />
-          <div className="processing-text">Læser gravstenen…</div>
-          <div className="processing-sub">Navn, årstal og placering sammenholdes med arkivet</div>
+        <div className="processing" role="status" aria-live="polite">
+          <div className="spinner is-light" />
+          <strong>Læser gravstenen…</strong>
+          <span>Navn, årstal og placering sammenholdes med arkivet</span>
         </div>
       )}
 
       {phase === 'result' && result && (
-        <div className="scan-sheet" role="dialog" aria-label="Scanningsresultat">
-          <div className="sheet-handle" />
+        <div className="sheet" role="dialog" aria-label="Scanningsresultat">
+          <span className="grabber" aria-hidden="true" />
           {reading && !reading.isGravestone ? (
             <>
-              <div className="sheet-title">Det ligner ikke en gravsten</div>
+              <h2 className="sheet-title">Det ligner ikke en gravsten</h2>
               <p className="sheet-text">
-                Prøv igen tættere på stenen, så navn og årstal fylder rammen.
+                Gå lidt tættere på, så navn og årstal fylder rammen, og prøv igen.
               </p>
             </>
           ) : result.candidates.length > 0 ? (
             <>
-              <div className="sheet-title">
+              <h2 className="sheet-title">
                 {result.candidates.length === 1 ? 'Vi fandt personen' : 'Mulige personer'}
-              </div>
-              {readText && <p className="sheet-text">Læst på stenen: {readText}</p>}
-              {result.mode === 'demo' && (
-                <p className="sheet-text muted">
-                  Demo: uden server viser vi de nærmeste kendte grave.
-                </p>
+              </h2>
+              {result.mode === 'demo' ? (
+                <p className="sheet-text">Demo: uden server viser vi de nærmeste kendte grave.</p>
+              ) : (
+                <p className="sheet-text">Tryk på personen for at læse historien.</p>
               )}
-              {result.candidates.map((c) => (
-                <PersonListItem
-                  key={c.person.id}
-                  person={c.person}
-                  badge={`${c.score}% match${c.distanceMeters !== null ? ` · ${formatDistance(c.distanceMeters)} væk` : ''}`}
-                  onSelect={(p) => navigate(`/person/${p.id}`, { state: { matchScore: c.score } })}
-                />
-              ))}
+              {readText && (
+                <div className="reading">
+                  <div className="eyebrow">Læst på stenen</div>
+                  <strong>{readText}</strong>
+                </div>
+              )}
+              <div style={{ marginTop: readText ? 0 : 14 }}>
+                <List inset={72}>
+                  {result.candidates.map((c) => (
+                    <PersonRow
+                      key={c.person.id}
+                      person={c.person}
+                      badge={`${c.score}%`}
+                      subtitle={
+                        c.distanceMeters !== null
+                          ? `${c.person.profession || c.person.cemetery} · ${formatDistance(c.distanceMeters)} væk`
+                          : undefined
+                      }
+                      onSelect={(p) =>
+                        navigate(`/person/${p.id}`, { state: { matchScore: c.score } })
+                      }
+                    />
+                  ))}
+                </List>
+              </div>
             </>
           ) : (
             <>
-              <div className="sheet-title">Personen er ikke i arkivet endnu</div>
-              {readText && <p className="sheet-text">Læst på stenen: {readText}</p>}
-              <p className="sheet-text">
-                Vi dækker foreløbig kendte danskere. Du kan tilføje graven, så den kommer med.
+              <h2 className="sheet-title">Personen er ikke i arkivet endnu</h2>
+              {readText && (
+                <div className="reading">
+                  <div className="eyebrow">Læst på stenen</div>
+                  <strong>{readText}</strong>
+                </div>
+              )}
+              <p className="sheet-text" style={{ marginBottom: 16 }}>
+                Vi dækker foreløbig kendte danskere. Tilføj graven, så den kommer med.
               </p>
               <button
                 type="button"
-                className="primary-btn"
+                className="btn btn-primary"
                 onClick={() =>
                   navigate('/submit', {
                     state: {
@@ -300,7 +328,8 @@ export function ScannerPage() {
           )}
           <button
             type="button"
-            className="secondary-btn"
+            className="btn btn-plain"
+            style={{ marginTop: 6 }}
             onClick={() => {
               setResult(null);
               setPhase('aim');
