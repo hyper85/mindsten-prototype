@@ -5,7 +5,10 @@ name: Deploy Supabase
 #   SUPABASE_ACCESS_TOKEN   personal access token (supabase.com/dashboard/account/tokens)
 #   SUPABASE_PROJECT_REF    the project ref, e.g. abcdefghijklmnopqrst
 #   SUPABASE_DB_PASSWORD    database password chosen when the project was created
-#   ANTHROPIC_API_KEY       key used by scan-gravestone and era-story
+#   One model key for scan-gravestone and era-story:
+#     ANTHROPIC_API_KEY     Claude API directly (console.anthropic.com), or
+#     OPENCODE_API_KEY      OpenCode Zen gateway (opencode.ai) — Claude models via /v1/messages
+#   LLM_MODEL (optional)    model id for the chosen provider
 
 on:
   push:
@@ -45,11 +48,18 @@ jobs:
       - name: Set function secrets
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
         run: |
-          if [ -n "$ANTHROPIC_API_KEY" ]; then
-            supabase secrets set --project-ref "$PROJECT_REF" ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
-          else
-            echo "::warning::ANTHROPIC_API_KEY not set — scanning and AI stories will return errors."
+          args=""
+          for v in ANTHROPIC_API_KEY OPENCODE_API_KEY LLM_MODEL; do
+            [ -n "${!v}" ] && args="$args $v=${!v}"
+          done
+          if [ -z "$ANTHROPIC_API_KEY$OPENCODE_API_KEY" ]; then
+            echo "::warning::Neither ANTHROPIC_API_KEY nor OPENCODE_API_KEY is set — scanning and AI stories will return errors."
+          fi
+          if [ -n "$args" ]; then
+            supabase secrets set --project-ref "$PROJECT_REF" $args
           fi
       - name: Deploy Edge Functions
         run: supabase functions deploy --project-ref "$PROJECT_REF" --use-api

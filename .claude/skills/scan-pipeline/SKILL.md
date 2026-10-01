@@ -11,7 +11,8 @@ description: How MindSTEN recognises a gravestone (camera → Claude vision → 
 2. **Client** (`scanGravestone` in `src/lib/api.ts`): `supabase.functions.invoke('scan-gravestone')`.
    Without Supabase env vars → demo mode (nearest curated graves, labelled in the UI).
 3. **Edge Function** (`supabase/functions/scan-gravestone/index.ts`): validates input, per-IP and
-   global rate limits (`mindsten_bump_rate_limit`), calls Claude with the image and a JSON schema
+   global rate limits (`mindsten_bump_rate_limit`), calls Claude via `_shared/llm.ts` (Claude API or
+   OpenCode gateway, whichever key is set) with the image and a JSON schema
    (`is_gravestone`, `people[{name, birth_year, death_year}]`, `inscription`), effort `low`.
    The photo is never stored.
 4. **SQL** (`match_gravestone` in `supabase/migrations/0002_full_app.sql`): per person read off

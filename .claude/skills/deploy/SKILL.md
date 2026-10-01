@@ -23,7 +23,10 @@ unless the user explicitly provides tokens.
    - `SUPABASE_ACCESS_TOKEN` — supabase.com/dashboard/account/tokens
    - `SUPABASE_PROJECT_REF` — the `<ref>`
    - `SUPABASE_DB_PASSWORD`
-   - `ANTHROPIC_API_KEY` — console.anthropic.com (used by the Edge Functions only)
+   - **One** model key for the Edge Functions:
+     `ANTHROPIC_API_KEY` (console.anthropic.com, Claude API directly) **or**
+     `OPENCODE_API_KEY` (opencode.ai, OpenCode Zen gateway). Optional `LLM_MODEL` picks the model id —
+     with OpenCode it must be a Claude model from the Zen catalogue (default `claude-sonnet-4-5`).
    - `SUPABASE_URL` — `https://<ref>.supabase.co` (import workflow)
    - `SUPABASE_SERVICE_ROLE_KEY` — Project Settings → API (import workflow; never put it in Vercel)
 3. **Run "Deploy Supabase"** (Actions → Deploy Supabase → Run workflow). It links the project,
@@ -42,12 +45,15 @@ unless the user explicitly provides tokens.
 - Open the Vercel URL on a phone. The scanner must *not* show "Demo-tilstand"; if it does,
   the `VITE_SUPABASE_*` vars were missing at build time.
 - Supabase → Table editor → `persons` has the 25 curated rows (+ imported rows).
-- Supabase → Edge Functions → both functions listed; invoke logs show no `ANTHROPIC_API_KEY secret is not set`.
+- Supabase → Edge Functions → both functions listed; invoke logs show no `No model API key`.
+  With OpenCode: a `model not found` error in the function logs means `LLM_MODEL` must be set to a
+  Claude model id that your OpenCode Zen account offers.
 - `select * from match_gravestone(array['H C Andersen'], 1805, 1875);` returns id 1 with score ≥ 90.
 
 ## Optional function secrets
 
-`ANTHROPIC_MODEL` (default `claude-opus-5-5`), `SCAN_LIMIT_PER_HOUR` (40/IP), `SCAN_LIMIT_PER_DAY` (3000 total),
+`LLM_MODEL` (default `claude-opus-5-5` with Anthropic, `claude-sonnet-4-5` with OpenCode),
+`LLM_BASE_URL` (OpenCode gateway, default `https://opencode.ai/zen`), `SCAN_LIMIT_PER_HOUR` (40/IP), `SCAN_LIMIT_PER_DAY` (3000 total),
 `STORY_LIMIT_PER_HOUR` (20/IP), `STORY_LIMIT_PER_DAY` (1000 total). Set with
 `supabase secrets set --project-ref <ref> NAME=value`.
 

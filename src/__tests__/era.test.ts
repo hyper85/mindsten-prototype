@@ -69,3 +69,19 @@ describe('curated fixtures', () => {
     }
   });
 });
+
+describe('extractJsonObject (OpenCode replies)', async () => {
+  const { extractJsonObject } = await import('../../supabase/functions/_shared/json.ts');
+
+  it('parses plain, fenced and chatty replies', () => {
+    expect(extractJsonObject('{"a":1}')).toEqual({ a: 1 });
+    expect(extractJsonObject('```json\n{"a": {"b": "}"}}\n```')).toEqual({ a: { b: '}' } });
+    expect(extractJsonObject('Her er svaret: {"names":["Ørsted"]} Tak.')).toEqual({
+      names: ['Ørsted'],
+    });
+  });
+
+  it('throws without an object', () => {
+    expect(() => extractJsonObject('ingen json')).toThrow();
+  });
+});

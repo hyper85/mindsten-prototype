@@ -36,7 +36,7 @@ export function AboutPage() {
 
         <h2>AI</h2>
         <p>
-          Når du scanner, sendes billedet til Claude (Anthropic), som læser teksten på stenen.
+          Når du scanner, sendes billedet til AI-modellen Claude, som læser teksten på stenen.
           Billedet gemmes ikke. Tidsvinduets fortællinger skrives af AI ud fra kuraterede fakta og
           personens biografi og er markeret som AI-genererede.
         </p>

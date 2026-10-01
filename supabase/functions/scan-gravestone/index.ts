@@ -5,14 +5,8 @@
 // (match_gravestone) ranks persons by name similarity, years and distance.
 // The photo is never stored.
 
-import Anthropic from 'npm:@anthropic-ai/sdk@0.129.0';
-import {
-  adminClient,
-  anthropicClient,
-  MODEL,
-  numberEnv,
-  withinRateLimit,
-} from '../_shared/clients.ts';
+import { adminClient, numberEnv, withinRateLimit } from '../_shared/clients.ts';
+import { generateJson, LlmRateLimitError } from '../_shared/llm.ts';
 import { clientIp, corsHeaders, json } from '../_shared/http.ts';
 
 const MAX_BASE64_CHARS = 7_000_000; // ≈ 5 MB image
@@ -101,36 +95,20 @@ Deno.serve(async (req) => {
 
   let reading: RawReading;
   try {
-    const client = anthropicClient();
-    const response = await client.beta.messages.create({
-      model: MODEL,
-      max_tokens: 4000,
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
+    const result = await generateJson<RawReading>({
       system: SYSTEM,
-      output_config: {
-        effort: 'low',
-        format: { type: 'json_schema', schema: READING_SCHEMA },
-      },
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: image } },
-            { type: 'text', text: 'Aflæs denne gravsten.' },
-          ],
-        },
+      schema: READING_SCHEMA,
+      effort: 'low',
+      maxTokens: 4000,
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: image } },
+        { type: 'text', text: 'Aflæs denne gravsten.' },
       ],
     });
-
-    if (response.stop_reason === 'refusal') {
-      return json({ reading: null, candidates: [] });
-    }
-    const text = response.content.find((b) => b.type === 'text');
-    if (!text || text.type !== 'text') throw new Error('no text block in response');
-    reading = JSON.parse(text.text) as RawReading;
+    if (!result) return json({ reading: null, candidates: [] });
+    reading = result;
   } catch (err) {
-    if (err instanceof Anthropic.RateLimitError) return json({ error: 'rate_limited' }, 429);
+    if (err instanceof LlmRateLimitError) return json({ error: 'rate_limited' }, 429);
     console.error('vision call failed', err);
     return json({ error: 'vision_failed' }, 502);
   }

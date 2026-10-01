@@ -1,20 +1,10 @@
-import Anthropic from 'npm:@anthropic-ai/sdk@0.129.0';
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.117.2';
-
-/** Model used for vision + story generation. Override with the ANTHROPIC_MODEL secret. */
-export const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-opus-5-5';
 
 export function adminClient(): SupabaseClient {
   const url = Deno.env.get('SUPABASE_URL');
   const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!url || !key) throw new Error('SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing');
   return createClient(url, key, { auth: { persistSession: false } });
-}
-
-export function anthropicClient(): Anthropic {
-  const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY secret is not set');
-  return new Anthropic({ apiKey, maxRetries: 1 });
 }
 
 /**

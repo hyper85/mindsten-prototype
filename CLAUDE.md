@@ -7,7 +7,8 @@ Starts with famous Danes (curated set + Wikidata import).
 ## Stack
 
 - **Web**: Vite + React 18 + TypeScript, react-router, Leaflet (react-leaflet 4), vite-plugin-pwa. Hosted on Vercel.
-- **Backend**: Supabase Postgres (pg_trgm, unaccent) + Edge Functions (Deno) calling the Claude API.
+- **Backend**: Supabase Postgres (pg_trgm, unaccent) + Edge Functions (Deno) calling Claude — directly
+  (`ANTHROPIC_API_KEY`) or via the OpenCode Zen gateway (`OPENCODE_API_KEY`); see `_shared/llm.ts`.
 - **Data**: `src/data/*.ts` curated fixtures → `supabase/seed.sql` (generated); Wikidata/Wikipedia import script.
 
 ## Layout
@@ -25,7 +26,8 @@ Starts with famous Danes (curated set + Wikidata import).
 - Never edit `supabase/seed.sql` by hand — edit `src/data/*` and run `npm run seed:generate`.
 - Persons must have died ≥ 10 years ago (databeskyttelsesloven § 2, stk. 5).
 - Only well-established historical facts; approximate numbers say "ca.".
-- Claude model default `claude-opus-5-5` (override with the `ANTHROPIC_MODEL` function secret).
+- All model calls go through `supabase/functions/_shared/llm.ts`. Default model `claude-opus-5-5` (Anthropic)
+  / `claude-sonnet-4-5` (OpenCode); override with the `LLM_MODEL` function secret.
 
 ## Checks
 

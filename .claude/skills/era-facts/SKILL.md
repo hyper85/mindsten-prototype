@@ -27,6 +27,7 @@ description: Extend or correct the curated Danish history dataset behind the Tid
 
 - Facts about the person come only from the stored bio/fields — no invented quotes or relations.
 - The "imagine" paragraph must read as imagination, not as fact about the person.
-- Output via `output_config.format` JSON schema; handle `stop_reason === 'refusal'`.
-- Model defaults to `claude-opus-5-5` (`ANTHROPIC_MODEL` secret overrides). Load the
-  `claude-api` skill before changing API parameters.
+- Model calls go through `_shared/llm.ts` (`generateJson`): JSON-schema structured output with the
+  Claude API, prompt-requested JSON + lenient parsing via OpenCode. Handle refusals (returns null).
+- Model defaults: `claude-opus-5-5` (Anthropic) / `claude-sonnet-4-5` (OpenCode); `LLM_MODEL` overrides.
+  Load the `claude-api` skill before changing API parameters.

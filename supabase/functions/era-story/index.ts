@@ -5,14 +5,8 @@
 // and the person's stored bio. Cached in era_stories so each person is only
 // generated once.
 
-import Anthropic from 'npm:@anthropic-ai/sdk@0.129.0';
-import {
-  adminClient,
-  anthropicClient,
-  MODEL,
-  numberEnv,
-  withinRateLimit,
-} from '../_shared/clients.ts';
+import { adminClient, numberEnv, withinRateLimit } from '../_shared/clients.ts';
+import { generateJson, LlmRateLimitError, modelName } from '../_shared/llm.ts';
 import { buildEraSnapshot, eraSnapshotToPromptContext } from '../_shared/era.ts';
 import { clientIp, corsHeaders, json } from '../_shared/http.ts';
 
@@ -117,34 +111,40 @@ Skriv et Tidsvindue om ${person.name}s tid.`;
 
   let story: StoryContent;
   try {
-    const client = anthropicClient();
-    const response = await client.beta.messages.create({
-      model: MODEL,
-      max_tokens: 16000,
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
+    const result = await generateJson<StoryContent>({
       system: SYSTEM,
-      output_config: {
-        effort: 'medium',
-        format: { type: 'json_schema', schema: STORY_SCHEMA },
-      },
-      messages: [{ role: 'user', content: userPrompt }],
+      schema: STORY_SCHEMA,
+      effort: 'medium',
+      maxTokens: 16000,
+      content: userPrompt,
     });
-
-    if (response.stop_reason === 'refusal') return json({ error: 'refused' }, 422);
-    const text = response.content.find((b) => b.type === 'text');
-    if (!text || text.type !== 'text') throw new Error('no text block in response');
-    story = JSON.parse(text.text) as StoryContent;
+    if (!result) return json({ error: 'refused' }, 422);
+    if (
+      typeof result.title !== 'string' ||
+      typeof result.intro !== 'string' ||
+      !Array.isArray(result.sections)
+    ) {
+      throw new Error('story does not match schema');
+    }
+    story = {
+      title: result.title,
+      intro: result.intro,
+      sections: result.sections
+        .filter((x) => typeof x?.heading === 'string' && typeof x?.body === 'string')
+        .map(({ heading, body }) => ({ heading, body })),
+      imagine: typeof result.imagine === 'string' ? result.imagine : '',
+    };
   } catch (err) {
-    if (err instanceof Anthropic.RateLimitError) return json({ error: 'rate_limited' }, 429);
+    if (err instanceof LlmRateLimitError) return json({ error: 'rate_limited' }, 429);
     console.error('story generation failed', err);
     return json({ error: 'generation_failed' }, 502);
   }
 
+  const model = modelName();
   const { error: cacheError } = await sb
     .from('era_stories')
-    .upsert({ person_id: personId, content: story, model: MODEL });
+    .upsert({ person_id: personId, content: story, model });
   if (cacheError) console.error('caching era story failed', cacheError);
 
-  return json({ ...story, model: MODEL });
+  return json({ ...story, model });
 });

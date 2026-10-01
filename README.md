@@ -69,7 +69,8 @@ Se [`.claude/skills/deploy/SKILL.md`](.claude/skills/deploy/SKILL.md). Kort fort
 
 1. Opret et Supabase-projekt (EU-region).
 2. Tilføj GitHub-secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`,
-   `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
+   `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` og én modelnøgle: `ANTHROPIC_API_KEY` **eller**
+   `OPENCODE_API_KEY` (OpenCode Zen).
 3. Kør workflowet **Deploy Supabase** og derefter **Import persons from Wikidata**.
 4. Importér repoet i Vercel og sæt `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`.
 
