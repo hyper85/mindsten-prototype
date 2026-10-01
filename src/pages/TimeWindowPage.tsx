@@ -45,6 +45,7 @@ export function TimeWindowPage() {
   const [status, setStatus] = useState<'loading' | 'ok' | 'not-found' | 'error'>('loading');
   const [story, setStory] = useState<EraStory | null>(null);
   const [storyState, setStoryState] = useState<StoryState>('idle');
+  const [slow, setSlow] = useState(false);
   const [scope, setScope] = useState<'all' | 'dk'>('all');
 
   useDocumentTitle(person ? `Tidsvindue · ${person.name}` : 'Tidsvindue');
@@ -76,12 +77,17 @@ export function TimeWindowPage() {
   const loadStory = async () => {
     if (!person) return;
     setStoryState('loading');
+    setSlow(false);
+    // A first story takes a while to write; say so instead of a silent spinner.
+    const slowTimer = setTimeout(() => setSlow(true), 12_000);
     try {
       const result = await getEraStory(person.id);
       setStory(result);
       setStoryState(result ? 'ok' : 'failed');
     } catch {
       setStoryState('failed');
+    } finally {
+      clearTimeout(slowTimer);
     }
   };
 
@@ -197,7 +203,9 @@ export function TimeWindowPage() {
                   <span>
                     {storyState === 'failed'
                       ? 'Det lykkedes ikke. Prøv igen om lidt.'
-                      : 'En kort fortælling om livet i Danmark dengang'}
+                      : storyState === 'loading' && slow
+                        ? 'Det tager lidt længere end normalt – vent et øjeblik'
+                        : 'En kort fortælling om livet i Danmark dengang'}
                   </span>
                 </span>
               </button>

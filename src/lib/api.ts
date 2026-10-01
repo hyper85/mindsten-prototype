@@ -22,6 +22,8 @@ import type {
 } from '../types';
 
 const SIMULATED_LATENCY_MS = 150;
+// AI calls give up after this long (the Edge Functions stop the model at ~50 s).
+const AI_TIMEOUT_MS = 65_000;
 // Lists change rarely; reuse them within a visit so back navigation is instant.
 const MEMO_TTL_MS = 5 * 60 * 1000;
 
@@ -309,6 +311,7 @@ export async function scanGravestone(
   if (sb && imageBase64) {
     const { data, error } = await sb.functions.invoke<ScanFunctionResponse>('scan-gravestone', {
       body: { image: imageBase64, lat: coords?.lat ?? null, lng: coords?.lng ?? null },
+      timeout: AI_TIMEOUT_MS,
     });
     if (error) {
       const status = (error as { context?: { status?: number } }).context?.status;
@@ -366,7 +369,10 @@ export async function getEraStory(personId: number): Promise<EraStory | null> {
       model: cached.data.model as string | null,
     };
   }
-  const { data, error } = await sb.functions.invoke<EraStory>('era-story', { body: { personId } });
+  const { data, error } = await sb.functions.invoke<EraStory>('era-story', {
+    body: { personId },
+    timeout: AI_TIMEOUT_MS,
+  });
   if (error || !data) {
     console.warn('[api] era-story failed', error);
     return null;
@@ -405,7 +411,7 @@ export async function askAboutPerson(
   }
   const { data, error } = await sb.functions.invoke<{ answer?: string; sig?: string }>(
     'ask-person',
-    { body: { personId, question, history: history.slice(-6) } },
+    { body: { personId, question, history: history.slice(-6) }, timeout: AI_TIMEOUT_MS },
   );
   if (error) {
     const status = (error as { context?: { status?: number } }).context?.status;

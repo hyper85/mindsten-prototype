@@ -54,7 +54,7 @@ unless the user explicitly provides tokens.
 
 ## Optional function secrets
 
-`LLM_MODEL` (default `claude-opus-5-5` with Anthropic, `glm-5.3-flash` with OpenCode), `LLM_VISION_MODEL`,
+`LLM_MODEL` (default `claude-opus-5-5` with Anthropic, `glm-5.3-flash` with OpenCode), `LLM_VISION_MODEL`, `LLM_EXTRA_BODY` (JSON merged into OpenCode `/v1/chat/completions` requests, e.g. `{"thinking":{"type":"disabled"}}` when a reasoning model is too slow),
 `LLM_BASE_URL` (OpenCode gateway, default `https://opencode.ai/zen`), `SCAN_LIMIT_PER_HOUR` (40/IP), `SCAN_LIMIT_PER_DAY` (3000 total),
 `STORY_LIMIT_PER_HOUR` (20/IP), `STORY_LIMIT_PER_DAY` (1000 total), `ASK_LIMIT_PER_HOUR` (30/IP),
 `ASK_LIMIT_PER_DAY` (3000 total), `ALLOWED_ORIGINS` (comma-separated browser origins allowed to call
