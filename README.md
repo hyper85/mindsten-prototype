@@ -37,11 +37,12 @@ Se skill'en `design-system` for farver, komponenter og mønstre.
 
 ```
 Telefon (Vercel, React PWA)
-  ├─ Supabase Postgres  ← persons, cemeteries, routes, era_stories, grave_submissions
+  ├─ Supabase Postgres  ← persons, cemeteries, routes, era_stories, person_answers, grave_submissions
   │     match_gravestone() · search_persons() · nearby_persons()   (pg_trgm + unaccent)
   └─ Supabase Edge Functions (Deno)
         scan-gravestone  → Claude vision → match_gravestone()
         era-story        → Claude + kuraterede historiske fakta → cache
+        ask-person       → »Spørg om …«: AI-guide om personen og tiden → cache
 GitHub Actions
   ├─ CI: lint, typecheck, tests, build, Deno-check, SQL-tests på Postgres 16
   ├─ Deploy Supabase: migrationer + seed + functions + secrets

@@ -41,8 +41,9 @@
   --shadow-lg: 0 12px 40px rgba(31, 27, 20, 0.14);
 
   /* Type */
-  --font-sans: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI',
-    Roboto, sans-serif;
+  --font-sans:
+    'Inter Variable', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto,
+    sans-serif;
   --font-serif: 'Newsreader Variable', 'New York', 'Iowan Old Style', Georgia, serif;
 
   /* Layout */
@@ -131,8 +132,7 @@ svg {
   padding: 32px 24px;
   background:
     radial-gradient(1100px 620px at 8% 0%, #e3eee7 0%, transparent 62%),
-    radial-gradient(900px 600px at 100% 100%, #f6ead6 0%, transparent 58%),
-    var(--bg-desk);
+    radial-gradient(900px 600px at 100% 100%, #f6ead6 0%, transparent 58%), var(--bg-desk);
 }
 
 .device {
@@ -1256,7 +1256,11 @@ a.row:active {
   justify-content: center;
   margin: 0 calc(-1 * var(--page-x));
   padding: 18px var(--page-x) 30px;
-  background: radial-gradient(ellipse 70% 85% at 50% 40%, var(--memorial-glow, #e7efe9) 0%, transparent 72%);
+  background: radial-gradient(
+    ellipse 70% 85% at 50% 40%,
+    var(--memorial-glow, #e7efe9) 0%,
+    transparent 72%
+  );
 }
 
 .stone {
@@ -2613,4 +2617,300 @@ a.row:active {
     animation-iteration-count: 1 !important;
     transition: none !important;
   }
+}
+
+/* ==========================================================================
+   AI guide ("Spørg om …")
+   ========================================================================== */
+
+.ask-card {
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(150deg, #e5eee8 0%, #f3f0e9 100%);
+  box-shadow: var(--shadow);
+}
+
+.ask-card .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--tint);
+}
+
+.ask-card .eyebrow svg {
+  width: 15px;
+  height: 15px;
+}
+
+.ask-card-title {
+  margin-top: 6px;
+  font-family: var(--font-serif);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.ask-card-text {
+  margin: 6px 0 14px;
+  color: #4f4a42;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.suggestions {
+  display: grid;
+  gap: 8px;
+}
+
+.suggestion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 550;
+  line-height: 1.3;
+  text-align: left;
+  transition: transform 0.15s var(--ease);
+}
+
+.suggestion:active {
+  transform: scale(0.98);
+}
+
+.suggestion:disabled {
+  opacity: 0.6;
+}
+
+.suggestion svg {
+  width: 19px;
+  height: 19px;
+  color: var(--tint);
+}
+
+.suggestion.is-own {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(45, 106, 79, 0.25);
+  color: var(--tint);
+}
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.chat-body {
+  display: grid;
+  flex: 1;
+  align-content: start;
+  gap: 14px;
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 4px var(--page-x) 18px;
+}
+
+.chat-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0 4px;
+  text-align: center;
+}
+
+.chat-intro h1 {
+  font-family: var(--font-serif);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.12;
+}
+
+.chat-intro p {
+  max-width: 310px;
+  color: var(--text-2);
+  font-size: 14.5px;
+  line-height: 1.45;
+}
+
+.messages {
+  display: grid;
+  gap: 10px;
+}
+
+.bubble {
+  max-width: 86%;
+  padding: 10px 14px;
+  border-radius: 20px;
+  font-size: 16px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  animation: page-in 0.25s var(--ease) both;
+}
+
+.bubble p + p {
+  margin-top: 8px;
+}
+
+.bubble.is-user {
+  justify-self: end;
+  border-bottom-right-radius: 6px;
+  background: var(--tint);
+  color: #fff;
+}
+
+.bubble.is-ai {
+  justify-self: start;
+  border-bottom-left-radius: 6px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-sm);
+}
+
+.bubble.is-error {
+  justify-self: center;
+  max-width: 100%;
+  border-radius: 12px;
+  background: #fbebe9;
+  color: #9b2c27;
+  font-size: 14px;
+  text-align: center;
+}
+
+.bubble-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 4px;
+  color: var(--tint);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.bubble-label svg {
+  width: 13px;
+  height: 13px;
+}
+
+.typing {
+  justify-self: start;
+  display: flex;
+  gap: 5px;
+  padding: 14px 16px;
+  border-radius: 20px;
+  border-bottom-left-radius: 6px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-sm);
+}
+
+.typing i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-3);
+  animation: typing 1.2s ease-in-out infinite;
+}
+
+.typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes typing {
+  0%,
+  60%,
+  100% {
+    opacity: 0.45;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
+}
+
+.chat-body .chips {
+  margin: 0 calc(-1 * var(--page-x));
+  padding: 2px var(--page-x) 4px;
+}
+
+.composer {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  padding: 10px var(--page-x) calc(8px + var(--safe-bottom));
+  border-top: 0.5px solid var(--separator);
+  background: rgba(245, 243, 238, 0.9);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+.composer-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.composer textarea {
+  flex: 1;
+  min-width: 0;
+  max-height: 120px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 21px;
+  outline: none;
+  background: var(--bg-elevated);
+  box-shadow:
+    inset 0 0 0 0.5px var(--separator),
+    var(--shadow-sm);
+  font-size: 16px;
+  line-height: 1.35;
+  resize: none;
+  field-sizing: content;
+}
+
+.composer textarea::placeholder {
+  color: var(--text-3);
+}
+
+.send-btn {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--tint);
+  color: #fff;
+  transition: background 0.2s;
+}
+
+.send-btn svg {
+  width: 21px;
+  height: 21px;
+  stroke-width: 2.5;
+}
+
+.send-btn:disabled {
+  background: var(--fill-strong);
+  color: #fff;
+}
+
+.composer-note {
+  margin-top: 6px;
+  color: var(--text-3);
+  font-size: 11.5px;
+  text-align: center;
 }

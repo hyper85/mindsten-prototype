@@ -6,6 +6,7 @@ import { TabBar } from './components/TabBar';
 import { Toaster } from './components/Toaster';
 import { hasCompletedOnboarding, markOnboardingComplete } from './lib/onboarding';
 import { AboutPage } from './pages/AboutPage';
+import { AskPage } from './pages/AskPage';
 import { CemeteryPage } from './pages/CemeteryPage';
 import { HomePage } from './pages/HomePage';
 import { MapPage } from './pages/MapPage';
@@ -33,6 +34,8 @@ export default function App() {
   };
 
   const immersive = pathname.startsWith('/scanner');
+  // Chat screens use the full height for the message composer (like Messages).
+  const hideTabBar = immersive || pathname.endsWith('/ask');
 
   return (
     <div className="app-shell">
@@ -53,6 +56,7 @@ export default function App() {
                 <Route path="/search" element={<SearchPage />} />
                 <Route path="/person/:id" element={<PersonPage />} />
                 <Route path="/person/:id/time-window" element={<TimeWindowPage />} />
+                <Route path="/person/:id/ask" element={<AskPage />} />
                 <Route path="/cemetery/:id" element={<CemeteryPage />} />
                 <Route path="/route/:id" element={<RoutePage />} />
                 <Route path="/map" element={<MapPage />} />
@@ -64,7 +68,7 @@ export default function App() {
             </ErrorBoundary>
           </main>
 
-          {onboarded && !immersive && <TabBar />}
+          {onboarded && !hideTabBar && <TabBar />}
           <Toaster />
           <div className="home-indicator" aria-hidden="true" />
         </div>

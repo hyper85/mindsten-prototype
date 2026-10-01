@@ -6,8 +6,11 @@ import {
   Heart,
   Hourglass,
   Map as MapIcon,
+  MessageCircleQuestion,
   Navigation,
+  PenLine,
   Share,
+  Sparkles,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -19,6 +22,7 @@ import { NavBar, Page, Section } from '../components/Layout';
 import { List, Row, ValueRow } from '../components/List';
 import { EmptyState, LoadingState } from '../components/StatePanel';
 import { getPersonById } from '../lib/api';
+import { suggestedQuestions } from '../lib/ask';
 import { ageAtDeath, CATEGORY_META } from '../lib/format';
 import { directionsUrl } from '../lib/geo';
 import { isFavorite, recordVisit, toggleFavorite } from '../lib/storage';
@@ -231,6 +235,42 @@ export function PersonPage() {
             </div>
           </Section>
         )}
+
+        <Section>
+          <div className="ask-card">
+            <div className="eyebrow">
+              <Sparkles aria-hidden="true" />
+              AI-guide
+            </div>
+            <h2 className="ask-card-title">Spørg om {person.name}</h2>
+            <p className="ask-card-text">
+              Nysgerrig på mere? Stil dine egne spørgsmål om personen og tiden.
+            </p>
+            <div className="suggestions">
+              {suggestedQuestions(person)
+                .slice(0, 3)
+                .map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    className="suggestion"
+                    onClick={() => navigate(`/person/${person.id}/ask`, { state: { question: q } })}
+                  >
+                    <MessageCircleQuestion aria-hidden="true" />
+                    {q}
+                  </button>
+                ))}
+              <button
+                type="button"
+                className="suggestion is-own"
+                onClick={() => navigate(`/person/${person.id}/ask`)}
+              >
+                <PenLine aria-hidden="true" />
+                Stil dit eget spørgsmål
+              </button>
+            </div>
+          </div>
+        </Section>
 
         <Section>
           <div className="tw-card">

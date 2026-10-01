@@ -111,3 +111,58 @@ export async function generateJson<T>(req: JsonRequest): Promise<T | null> {
     throw err;
   }
 }
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+interface TextRequest {
+  system: string;
+  messages: ChatMessage[];
+  effort: 'low' | 'medium' | 'high';
+  maxTokens: number;
+}
+
+/**
+ * Plain-text chat completion. Returns null when the model declines (refusal);
+ * throws LlmRateLimitError on 429 and the SDK error on other failures.
+ */
+export async function generateText(req: TextRequest): Promise<string | null> {
+  const { provider, model, client } = config();
+  try {
+    if (provider === 'anthropic') {
+      const response = await client.beta.messages.create({
+        model,
+        max_tokens: req.maxTokens,
+        betas: ['server-side-fallback-2026-07-01'],
+        fallbacks: 'default',
+        system: req.system,
+        output_config: { effort: req.effort },
+        messages: req.messages,
+      });
+      if (response.stop_reason === 'refusal') return null;
+      return response.content
+        .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text')
+        .map((b) => b.text)
+        .join('')
+        .trim();
+    }
+
+    const response = await client.messages.create({
+      model,
+      max_tokens: req.maxTokens,
+      system: req.system,
+      messages: req.messages,
+    });
+    if (response.stop_reason === 'refusal') return null;
+    return response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map((b) => b.text)
+      .join('')
+      .trim();
+  } catch (err) {
+    if (err instanceof Anthropic.RateLimitError) throw new LlmRateLimitError(String(err));
+    throw err;
+  }
+}

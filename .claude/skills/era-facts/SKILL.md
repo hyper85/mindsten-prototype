@@ -31,3 +31,14 @@ description: Extend or correct the curated Danish history dataset behind the Tid
   Claude API, prompt-requested JSON + lenient parsing via OpenCode. Handle refusals (returns null).
 - Model defaults: `claude-opus-5-5` (Anthropic) / `claude-sonnet-4-5` (OpenCode); `LLM_MODEL` overrides.
   Load the `claude-api` skill before changing API parameters.
+
+## AI guide (»Spørg om …«)
+
+- **Function**: `supabase/functions/ask-person/index.ts` — free-text questions about one person.
+  Prompt rules + grounding live in `_shared/ask.ts` (`ASK_SYSTEM`, `buildPersonContext`), which
+  feeds the bio, timeline, sources and `eraSnapshotToPromptContext()` to `generateText` in `llm.ts`.
+- First questions (no history) are cached in `person_answers` by `questionKey()`; delete rows for a
+  person after editing their bio or the prompt. Never log question text.
+- **UI**: `src/pages/AskPage.tsx` (chat) + the "AI-guide" card on `PersonPage.tsx`; suggested
+  questions in `src/lib/ask.ts`. Keep the same rules as era-story: no invented quotes, relations or
+  years, nothing speculative about death, illness or private life.

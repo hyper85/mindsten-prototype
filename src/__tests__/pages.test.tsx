@@ -64,6 +64,8 @@ describe('pages smoke tests', () => {
     expect(screen.getByText('Livet i årstal')).toBeInTheDocument();
     expect(screen.getByText('Vis vej')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Gem/ })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('heading', { name: 'Spørg om H.C. Andersen' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Stil dit eget spørgsmål' })).toBeInTheDocument();
   });
 
   it('PersonPage shows not-found for unknown id', async () => {

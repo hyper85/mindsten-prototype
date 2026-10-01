@@ -12,7 +12,7 @@ unless the user explicitly provides tokens.
 | --- | --- | --- |
 | Web app (Vite + React PWA) | Vercel | Vercel Git integration on every push (preview per PR, production on `main`) |
 | Postgres schema + seed | Supabase | `.github/workflows/supabase-deploy.yml` (`supabase db push --include-seed`) |
-| Edge Functions `scan-gravestone`, `era-story` | Supabase | same workflow (`supabase functions deploy --use-api`) |
+| Edge Functions `scan-gravestone`, `era-story`, `ask-person` | Supabase | same workflow (`supabase functions deploy --use-api`) |
 | Wikidata import | GitHub Actions | `.github/workflows/import-data.yml` (monthly + manual) |
 
 ## First-time setup (the user does this — you guide)
@@ -30,7 +30,7 @@ unless the user explicitly provides tokens.
    - `SUPABASE_URL` — `https://<ref>.supabase.co` (import workflow)
    - `SUPABASE_SERVICE_ROLE_KEY` — Project Settings → API (import workflow; never put it in Vercel)
 3. **Run "Deploy Supabase"** (Actions → Deploy Supabase → Run workflow). It links the project,
-   applies `supabase/migrations/*`, runs `supabase/seed.sql`, sets `ANTHROPIC_API_KEY`, deploys functions.
+   applies `supabase/migrations/*`, runs `supabase/seed.sql`, sets the model key secret(s), deploys all functions.
 4. **Run "Import persons from Wikidata"** once (try `limit: 50` + dry run first).
 5. **Vercel** — vercel.com → Add New Project → import `hyper85/mindsten-prototype`.
    Framework preset: Vite (also pinned in `vercel.json`). Environment variables:
@@ -45,7 +45,7 @@ unless the user explicitly provides tokens.
 - Open the Vercel URL on a phone. The scanner must *not* show "Demo-tilstand"; if it does,
   the `VITE_SUPABASE_*` vars were missing at build time.
 - Supabase → Table editor → `persons` has the 25 curated rows (+ imported rows).
-- Supabase → Edge Functions → both functions listed; invoke logs show no `No model API key`.
+- Supabase → Edge Functions → all three functions listed; invoke logs show no `No model API key`.
   With OpenCode: a `model not found` error in the function logs means `LLM_MODEL` must be set to a
   Claude model id that your OpenCode Zen account offers.
 - `select * from match_gravestone(array['H C Andersen'], 1805, 1875);` returns id 1 with score ≥ 90.
@@ -54,7 +54,8 @@ unless the user explicitly provides tokens.
 
 `LLM_MODEL` (default `claude-opus-5-5` with Anthropic, `claude-sonnet-4-5` with OpenCode),
 `LLM_BASE_URL` (OpenCode gateway, default `https://opencode.ai/zen`), `SCAN_LIMIT_PER_HOUR` (40/IP), `SCAN_LIMIT_PER_DAY` (3000 total),
-`STORY_LIMIT_PER_HOUR` (20/IP), `STORY_LIMIT_PER_DAY` (1000 total). Set with
+`STORY_LIMIT_PER_HOUR` (20/IP), `STORY_LIMIT_PER_DAY` (1000 total), `ASK_LIMIT_PER_HOUR` (30/IP),
+`ASK_LIMIT_PER_DAY` (3000 total). Set with
 `supabase secrets set --project-ref <ref> NAME=value`.
 
 ## Troubleshooting
@@ -62,7 +63,7 @@ unless the user explicitly provides tokens.
 - `Missing secrets:` in the workflow → step 2.
 - `db push` wants to re-apply `0001_init.sql` on a project that was set up by hand in the SQL editor:
   harmless — all migrations are idempotent. Alternatively `supabase migration repair --status applied 0001`.
-- Function returns 401 → `supabase/config.toml` must keep `verify_jwt = false` for both functions
+- Function returns 401 → `supabase/config.toml` must keep `verify_jwt = false` for every function
   (the browser calls them with the anon/publishable key).
 - Deep links 404 on Vercel → check the SPA rewrite in `vercel.json`.
 - Camera doesn't open → site must be HTTPS (Vercel is) and `Permissions-Policy` in `vercel.json`

@@ -330,6 +330,52 @@ export async function getEraStory(personId: number): Promise<EraStory | null> {
 }
 
 // ---------------------------------------------------------------------------
+// "Spørg om personen" (ask-person Edge Function)
+// ---------------------------------------------------------------------------
+
+export interface AskTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export class AskError extends Error {
+  constructor(
+    message: string,
+    public readonly code: 'offline' | 'rate_limited' | 'failed',
+  ) {
+    super(message);
+  }
+}
+
+export async function askAboutPerson(
+  personId: number,
+  question: string,
+  history: AskTurn[],
+): Promise<string> {
+  const sb = getSupabase();
+  if (!sb) {
+    throw new AskError('AI-guiden er ikke koblet på endnu. Prøv igen senere.', 'offline');
+  }
+  const { data, error } = await sb.functions.invoke<{ answer?: string }>('ask-person', {
+    body: { personId, question, history: history.slice(-6) },
+  });
+  if (error) {
+    const status = (error as { context?: { status?: number } }).context?.status;
+    if (status === 429) {
+      throw new AskError('Der er mange spørgsmål lige nu. Prøv igen om lidt.', 'rate_limited');
+    }
+    throw new AskError(
+      'Det lykkedes ikke at få et svar. Tjek forbindelsen og prøv igen.',
+      'failed',
+    );
+  }
+  if (!data?.answer) {
+    throw new AskError('Det lykkedes ikke at få et svar. Prøv igen.', 'failed');
+  }
+  return data.answer;
+}
+
+// ---------------------------------------------------------------------------
 // Community submissions
 // ---------------------------------------------------------------------------
 

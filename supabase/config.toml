@@ -16,3 +16,6 @@ verify_jwt = false
 
 [functions.era-story]
 verify_jwt = false
+
+[functions.ask-person]
+verify_jwt = false

@@ -53,6 +53,12 @@ export function AboutPage() {
               Billedet gemmes ikke. Tidsvinduets fortællinger skrives af AI ud fra kuraterede fakta
               og personens biografi og er markeret som AI-genererede.
             </p>
+            <p>
+              Når du bruger »Spørg om …«, sendes dit spørgsmål og samtalen til AI-guiden, som svarer
+              ud fra personens biografi, tidslinje og historiske fakta. Skriv ikke personlige
+              oplysninger i dine spørgsmål. Samtalen gemmes kun på din telefon, mens appen er åben,
+              og svar på de foreslåede spørgsmål genbruges for at spare tid.
+            </p>
           </div>
 
           <h2>Privatliv</h2>

@@ -1,4 +1,4 @@
-import { Camera, Hourglass, MapPin, ShieldCheck } from 'lucide-react';
+import { Camera, Hourglass, MapPin, ShieldCheck, Sparkles } from 'lucide-react';
 import { AppMark } from '../components/Illustrations';
 
 interface Props {
@@ -17,6 +17,12 @@ const FEATURES = [
     color: 'var(--gold)',
     title: 'Rejs tilbage i tiden',
     text: 'Se hvordan Danmark så ud, mens de levede – konger, krige og hverdagsliv.',
+  },
+  {
+    icon: Sparkles,
+    color: '#8a4fd1',
+    title: 'Spørg løs',
+    text: 'Stil dine egne spørgsmål om personen, og få svar fra MindSTENs AI-guide.',
   },
   {
     icon: MapPin,
