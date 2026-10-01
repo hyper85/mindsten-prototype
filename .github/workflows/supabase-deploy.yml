@@ -9,6 +9,7 @@ name: Deploy Supabase
 #     ANTHROPIC_API_KEY     Claude API directly (console.anthropic.com), or
 #     OPENCODE_API_KEY      OpenCode Zen gateway (opencode.ai) — Claude models via /v1/messages
 #   LLM_MODEL (optional)    model id for the chosen provider
+#   LLM_VISION_MODEL (optional)  model for reading gravestone photos (default: LLM_MODEL)
 #   ALLOWED_ORIGINS (optional)  comma-separated browser origins allowed to call the functions,
 #                               e.g. https://mindsten.dk,https://*.vercel.app (unset = any)
 #   ASK_SIGNING_KEY (optional)  HMAC key for ask-person answer signatures (default: service role key)
@@ -61,11 +62,12 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_VISION_MODEL: ${{ secrets.LLM_VISION_MODEL }}
           ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
           ASK_SIGNING_KEY: ${{ secrets.ASK_SIGNING_KEY }}
         run: |
           args=()
-          for v in ANTHROPIC_API_KEY OPENCODE_API_KEY LLM_MODEL ALLOWED_ORIGINS ASK_SIGNING_KEY; do
+          for v in ANTHROPIC_API_KEY OPENCODE_API_KEY LLM_MODEL LLM_VISION_MODEL ALLOWED_ORIGINS ASK_SIGNING_KEY; do
             if [ -n "${!v}" ]; then args+=("$v=${!v}"); fi
           done
           if [ -z "$ANTHROPIC_API_KEY$OPENCODE_API_KEY" ]; then

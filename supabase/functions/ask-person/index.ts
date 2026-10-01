@@ -102,7 +102,8 @@ serve(async (req) => {
       system: `${ASK_SYSTEM}\n\n${buildPersonContext(askPerson)}`,
       messages: [...history, { role: 'user', content: question }],
       effort: 'low',
-      maxTokens: 2000,
+      // Room for reasoning models' thinking; answers themselves stay short (prompt: ~120 words).
+      maxTokens: 4000,
     });
   } catch (err) {
     if (err instanceof LlmRateLimitError) return json({ error: 'rate_limited' }, 429);
