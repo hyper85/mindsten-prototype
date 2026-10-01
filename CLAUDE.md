@@ -38,7 +38,9 @@ fonts Inter + Newsreader (self-hosted). Read `.claude/skills/design-system` befo
 - New external hosts (APIs, images, tiles) must be added to the Content-Security-Policy in `vercel.json`.
 - Only well-established historical facts; approximate numbers say "ca.".
 - All model calls go through `supabase/functions/_shared/llm.ts`. Default model `claude-opus-5-5` (Anthropic)
-  / `claude-sonnet-4-5` (OpenCode); override with the `LLM_MODEL` function secret.
+  / `glm-5.3-flash` (OpenCode — the owner's account has no Claude access); override with the `LLM_MODEL`
+  function secret (`LLM_VISION_MODEL` for scanning). OpenCode serves `claude-*` on `/v1/messages`, all
+  other models on `/v1/chat/completions` (`_shared/openai.ts`).
 
 ## Checks
 

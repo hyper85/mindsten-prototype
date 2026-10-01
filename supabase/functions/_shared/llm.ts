@@ -2,28 +2,41 @@
 // either provider:
 //
 //   ANTHROPIC_API_KEY  → Claude API directly (structured outputs, fallbacks)
-//   OPENCODE_API_KEY   → OpenCode Zen gateway (Anthropic-compatible /v1/messages);
+//   OPENCODE_API_KEY   → OpenCode Zen gateway: Claude models (`claude-*`) on the
+//                        Anthropic-compatible /v1/messages, every other model (GLM, Kimi,
+//                        Qwen …) on the OpenAI-compatible /v1/chat/completions.
 //                        JSON is requested in the prompt and parsed leniently.
 //
-// Optional secrets: LLM_MODEL (model id for the chosen provider),
-// LLM_BASE_URL (override the OpenCode gateway URL).
+// Optional secrets: LLM_MODEL (model id for the chosen provider), LLM_VISION_MODEL (model
+// for reading gravestone photos, if LLM_MODEL can't see images), LLM_BASE_URL (override
+// the OpenCode gateway URL).
 
 import Anthropic from 'npm:@anthropic-ai/sdk@0.129.0';
 import { extractJsonObject } from './json.ts';
+import {
+  readChatCompletion,
+  toChatContent,
+  type ChatCompletionMessage,
+  type InputBlock,
+} from './openai.ts';
 
 const OPENCODE_BASE_URL = 'https://opencode.ai/zen';
 const DEFAULT_ANTHROPIC_MODEL = 'claude-opus-5-5';
-// Must be a Claude model in the OpenCode Zen catalogue (served on /v1/messages).
-const DEFAULT_OPENCODE_MODEL = 'claude-sonnet-4-5';
+// The owner's OpenCode Zen model (served on /v1/chat/completions); override with LLM_MODEL.
+const DEFAULT_OPENCODE_MODEL = 'glm-5.3-flash';
+const TIMEOUT_MS = 50_000;
 // Edge Functions have a limited wall-clock budget: fail a hung request instead of
 // waiting for the SDK's 10-minute default, and retry at most once.
-const CLIENT_OPTIONS = { timeout: 50_000, maxRetries: 1 } as const;
+const CLIENT_OPTIONS = { timeout: TIMEOUT_MS, maxRetries: 1 } as const;
 
 export type Provider = 'anthropic' | 'opencode';
 
 interface LlmConfig {
   provider: Provider;
   model: string;
+  visionModel: string;
+  apiKey: string;
+  baseURL: string;
   client: Anthropic;
 }
 
@@ -32,21 +45,31 @@ export class LlmRateLimitError extends Error {}
 function config(): LlmConfig {
   const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
   const opencodeKey = Deno.env.get('OPENCODE_API_KEY');
-  const model = Deno.env.get('LLM_MODEL') ?? Deno.env.get('ANTHROPIC_MODEL');
+  const model = (Deno.env.get('LLM_MODEL') || Deno.env.get('ANTHROPIC_MODEL'))?.trim();
+  const visionModel = Deno.env.get('LLM_VISION_MODEL')?.trim();
   if (anthropicKey) {
+    const chosen = model || DEFAULT_ANTHROPIC_MODEL;
     return {
       provider: 'anthropic',
-      model: model ?? DEFAULT_ANTHROPIC_MODEL,
+      model: chosen,
+      visionModel: visionModel || chosen,
+      apiKey: anthropicKey,
+      baseURL: 'https://api.anthropic.com',
       client: new Anthropic({ apiKey: anthropicKey, ...CLIENT_OPTIONS }),
     };
   }
   if (opencodeKey) {
+    const chosen = model || DEFAULT_OPENCODE_MODEL;
+    const baseURL = (Deno.env.get('LLM_BASE_URL') || OPENCODE_BASE_URL).replace(/\/+$/, '');
     return {
       provider: 'opencode',
-      model: model ?? DEFAULT_OPENCODE_MODEL,
+      model: chosen,
+      visionModel: visionModel || chosen,
+      apiKey: opencodeKey,
+      baseURL,
       client: new Anthropic({
         apiKey: opencodeKey,
-        baseURL: Deno.env.get('LLM_BASE_URL') ?? OPENCODE_BASE_URL,
+        baseURL,
         defaultHeaders: { Authorization: `Bearer ${opencodeKey}` },
         ...CLIENT_OPTIONS,
       }),
@@ -63,6 +86,47 @@ export function modelName(): string {
   }
 }
 
+/** OpenCode serves Claude models on /v1/messages and all others on /v1/chat/completions. */
+function usesChatCompletions(cfg: LlmConfig, model: string): boolean {
+  return cfg.provider === 'opencode' && !model.toLowerCase().startsWith('claude-');
+}
+
+async function chatCompletion(
+  cfg: LlmConfig,
+  model: string,
+  messages: ChatCompletionMessage[],
+  maxTokens: number,
+): Promise<{ text: string; refused: boolean }> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(`${cfg.baseURL}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${cfg.apiKey}` },
+        body: JSON.stringify({ model, max_tokens: maxTokens, messages }),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    } catch (err) {
+      lastError = err; // network error or timeout: retry once
+      continue;
+    }
+    if (res.status === 429) throw new LlmRateLimitError(await res.text());
+    if (res.status >= 500 && attempt === 0) {
+      lastError = new Error(`${res.status} ${(await res.text()).slice(0, 300)}`);
+      continue;
+    }
+    if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 300)}`);
+    const result = readChatCompletion(await res.json());
+    // An empty answer (e.g. the token budget spent on reasoning) is a failure, not a refusal.
+    if (!result.text && !result.refused) {
+      throw new Error(`empty model reply (finish_reason: ${result.finishReason || 'none'})`);
+    }
+    return result;
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
 interface JsonRequest {
   system: string;
   content: Anthropic.ContentBlockParam[] | string;
@@ -76,8 +140,28 @@ interface JsonRequest {
  * Returns null when the model declines (refusal); throws on other failures.
  */
 export async function generateJson<T>(req: JsonRequest): Promise<T | null> {
-  const { provider, model, client } = config();
+  const cfg = config();
+  const { provider, client } = cfg;
+  const hasImage = Array.isArray(req.content) && req.content.some((b) => b.type === 'image');
+  const model = hasImage ? cfg.visionModel : cfg.model;
+  const jsonInstruction =
+    `\n\nSvar udelukkende med ét gyldigt JSON-objekt — ingen anden tekst, ingen ` +
+    `markdown. Objektet skal følge dette JSON-skema:\n${JSON.stringify(req.schema)}`;
   try {
+    if (usesChatCompletions(cfg, model)) {
+      const { text, refused } = await chatCompletion(
+        cfg,
+        model,
+        [
+          { role: 'system', content: req.system + jsonInstruction },
+          { role: 'user', content: toChatContent(req.content as string | InputBlock[]) },
+        ],
+        req.maxTokens,
+      );
+      if (refused) return null;
+      return extractJsonObject(text) as T;
+    }
+
     if (provider === 'anthropic') {
       const response = await client.beta.messages.create({
         model,
@@ -98,9 +182,7 @@ export async function generateJson<T>(req: JsonRequest): Promise<T | null> {
     const response = await client.messages.create({
       model,
       max_tokens: req.maxTokens,
-      system:
-        `${req.system}\n\nSvar udelukkende med ét gyldigt JSON-objekt — ingen anden tekst, ingen ` +
-        `markdown. Objektet skal følge dette JSON-skema:\n${JSON.stringify(req.schema)}`,
+      system: req.system + jsonInstruction,
       messages: [{ role: 'user', content: req.content }],
     });
     if (response.stop_reason === 'refusal') return null;
@@ -132,8 +214,19 @@ interface TextRequest {
  * throws LlmRateLimitError on 429 and the SDK error on other failures.
  */
 export async function generateText(req: TextRequest): Promise<string | null> {
-  const { provider, model, client } = config();
+  const cfg = config();
+  const { provider, model, client } = cfg;
   try {
+    if (usesChatCompletions(cfg, model)) {
+      const { text, refused } = await chatCompletion(
+        cfg,
+        model,
+        [{ role: 'system', content: req.system }, ...req.messages],
+        req.maxTokens,
+      );
+      return refused ? null : text;
+    }
+
     if (provider === 'anthropic') {
       const response = await client.beta.messages.create({
         model,
