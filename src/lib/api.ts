@@ -1,6 +1,3 @@
-import { CEMETERIES } from '../data/cemeteries';
-import { PERSONS } from '../data/persons';
-import { ROUTES } from '../data/routes';
 import { distanceMeters, type Coords } from './geo';
 import {
   mapCemetery,
@@ -25,9 +22,33 @@ import type {
 } from '../types';
 
 const SIMULATED_LATENCY_MS = 150;
+// Lists change rarely; reuse them within a visit so back navigation is instant.
+const MEMO_TTL_MS = 5 * 60 * 1000;
 
 function delay<T>(value: T, ms = SIMULATED_LATENCY_MS): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms));
+}
+
+/** Curated fixtures: the demo-mode archive, and a fallback when the backend is unreachable. */
+const loadFixtures = () => import('./fixtures');
+
+const memoCache = new Map<string, { at: number; value: Promise<unknown> }>();
+
+/** Shares one in-flight/recent request per key; failures are not cached. */
+function memo<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const hit = memoCache.get(key);
+  if (hit && Date.now() - hit.at < MEMO_TTL_MS) return hit.value as Promise<T>;
+  const value = load();
+  memoCache.set(key, { at: Date.now(), value });
+  value.catch(() => memoCache.delete(key));
+  return value;
+}
+
+/** Thrown when the backend can't be reached and there's no offline copy of the data. */
+export class OfflineError extends Error {
+  constructor() {
+    super('Kunne ikke hente data. Tjek din forbindelse.');
+  }
 }
 
 function logSupabaseFallback(op: string, err: unknown): void {
@@ -69,44 +90,58 @@ export interface PersonQuery {
   limit?: number;
 }
 
-export async function getPersons(query: PersonQuery = {}): Promise<Person[]> {
-  const sb = getSupabase();
-  if (sb) {
-    let req = sb.from('persons').select(PERSON_LIST_SELECT).not('lat', 'is', null);
-    if (query.category) req = req.eq('category', query.category);
-    if (query.cemeteryId) req = req.eq('cemetery_id', query.cemeteryId);
-    const { data, error } = await req
-      .order('curated', { ascending: false })
-      .order('confidence', { ascending: false })
-      .order('id')
-      // PostgREST caps responses at 1000 rows by default (Supabase "Max rows").
-      .limit(query.limit ?? 1000);
-    if (!error && data) return (data as unknown as PersonRow[]).map(mapPerson);
-    logSupabaseFallback('getPersons', error);
-  }
-  let result = [...PERSONS];
-  if (query.category) result = result.filter((p) => p.category === query.category);
-  if (query.cemeteryId) result = result.filter((p) => p.cemeteryId === query.cemeteryId);
-  return delay(result.slice(0, query.limit ?? result.length));
+export function getPersons(query: PersonQuery = {}): Promise<Person[]> {
+  const key = `persons:${query.category ?? ''}:${query.cemeteryId ?? ''}:${query.limit ?? ''}`;
+  return memo(key, async () => {
+    const sb = getSupabase();
+    if (sb) {
+      let req = sb.from('persons').select(PERSON_LIST_SELECT).not('lat', 'is', null);
+      if (query.category) req = req.eq('category', query.category);
+      if (query.cemeteryId) req = req.eq('cemetery_id', query.cemeteryId);
+      const { data, error } = await req
+        .order('curated', { ascending: false })
+        .order('confidence', { ascending: false })
+        .order('id')
+        // PostgREST caps responses at 1000 rows by default (Supabase "Max rows").
+        .limit(query.limit ?? 1000);
+      if (!error && data) return (data as unknown as PersonRow[]).map(mapPerson);
+      logSupabaseFallback('getPersons', error);
+    }
+    const { PERSONS } = await loadFixtures();
+    let result = [...PERSONS];
+    if (query.category) result = result.filter((p) => p.category === query.category);
+    if (query.cemeteryId) result = result.filter((p) => p.cemeteryId === query.cemeteryId);
+    return delay(result.slice(0, query.limit ?? result.length));
+  });
 }
 
-export async function getPersonById(id: number): Promise<Person | null> {
-  const sb = getSupabase();
-  if (sb) {
-    const { data, error } = await sb
-      .from('persons')
-      .select(PERSON_SELECT)
-      .eq('id', id)
-      .maybeSingle();
-    if (!error) return data ? mapPerson(data as PersonRow) : null;
-    logSupabaseFallback('getPersonById', error);
-  }
-  return delay(PERSONS.find((p) => p.id === id) ?? null);
+/**
+ * One person with timeline and sources. Resolves null when the person doesn't exist;
+ * throws OfflineError when the backend is unreachable and the person isn't a curated one.
+ */
+export function getPersonById(id: number): Promise<Person | null> {
+  return memo(`person:${id}`, async () => {
+    const sb = getSupabase();
+    if (sb) {
+      const { data, error } = await sb
+        .from('persons')
+        .select(PERSON_SELECT)
+        .eq('id', id)
+        .maybeSingle();
+      if (!error) return data ? mapPerson(data as PersonRow) : null;
+      logSupabaseFallback('getPersonById', error);
+    }
+    const { PERSONS } = await loadFixtures();
+    const person = PERSONS.find((p) => p.id === id) ?? null;
+    if (sb && !person) throw new OfflineError();
+    return delay(person);
+  });
 }
 
 export async function getPersonsByIds(ids: number[]): Promise<Person[]> {
   const remote = await fetchPersonsByIds(ids);
   if (remote) return remote;
+  const { PERSONS } = await loadFixtures();
   return delay(
     ids.map((id) => PERSONS.find((p) => p.id === id)).filter((p): p is Person => Boolean(p)),
   );
@@ -148,6 +183,7 @@ export async function getNearbyPersons(
     return featured.map((person) => ({ person, distanceMeters: null }));
   }
 
+  const { PERSONS } = await loadFixtures();
   if (!coords)
     return delay(PERSONS.slice(0, limit).map((person) => ({ person, distanceMeters: null })));
   const withDistance = PERSONS.filter((p) => p.lat !== null && p.lng !== null)
@@ -177,6 +213,7 @@ export async function searchPersons(query: string, limit = 25): Promise<Person[]
       logSupabaseFallback('searchPersons', error);
     }
   }
+  const { PERSONS } = await loadFixtures();
   const q = normalize(trimmed);
   return delay(
     PERSONS.filter((p) =>
@@ -189,44 +226,51 @@ export async function searchPersons(query: string, limit = 25): Promise<Person[]
 // Cemeteries & routes
 // ---------------------------------------------------------------------------
 
-export async function getCemeteries(): Promise<Cemetery[]> {
-  const sb = getSupabase();
-  if (sb) {
-    const { data, error } = await sb
-      .from('cemeteries')
-      .select('id, name, city, lat, lng, description')
-      .order('name')
-      .limit(2000);
-    if (!error && data) {
-      return (data as CemeteryRow[]).map(mapCemetery).filter((c): c is Cemetery => Boolean(c));
+export function getCemeteries(): Promise<Cemetery[]> {
+  return memo('cemeteries', async () => {
+    const sb = getSupabase();
+    if (sb) {
+      const { data, error } = await sb
+        .from('cemeteries')
+        .select('id, name, city, lat, lng, description')
+        .order('name')
+        .limit(2000);
+      if (!error && data) {
+        return (data as CemeteryRow[]).map(mapCemetery).filter((c): c is Cemetery => Boolean(c));
+      }
+      logSupabaseFallback('getCemeteries', error);
     }
-    logSupabaseFallback('getCemeteries', error);
-  }
-  return delay([...CEMETERIES]);
+    const { CEMETERIES } = await loadFixtures();
+    return delay([...CEMETERIES]);
+  });
 }
 
 export async function getCemeteryById(id: number): Promise<Cemetery | null> {
+  const all = await getCemeteries();
+  const found = all.find((c) => c.id === id);
+  if (found) return found;
   const sb = getSupabase();
-  if (sb) {
-    const { data, error } = await sb
-      .from('cemeteries')
-      .select('id, name, city, lat, lng, description')
-      .eq('id', id)
-      .maybeSingle();
-    if (!error) return data ? mapCemetery(data as CemeteryRow) : null;
-    logSupabaseFallback('getCemeteryById', error);
-  }
-  return delay(CEMETERIES.find((c) => c.id === id) ?? null);
+  if (!sb) return null;
+  const { data, error } = await sb
+    .from('cemeteries')
+    .select('id, name, city, lat, lng, description')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw new OfflineError();
+  return data ? mapCemetery(data as CemeteryRow) : null;
 }
 
-export async function getRoutes(): Promise<ThemedRoute[]> {
-  const sb = getSupabase();
-  if (sb) {
-    const { data, error } = await sb.from('routes').select('*').order('id');
-    if (!error && data) return (data as RouteRow[]).map(mapRoute);
-    logSupabaseFallback('getRoutes', error);
-  }
-  return delay([...ROUTES]);
+export function getRoutes(): Promise<ThemedRoute[]> {
+  return memo('routes', async () => {
+    const sb = getSupabase();
+    if (sb) {
+      const { data, error } = await sb.from('routes').select('*').order('id');
+      if (!error && data) return (data as RouteRow[]).map(mapRoute);
+      logSupabaseFallback('getRoutes', error);
+    }
+    const { ROUTES } = await loadFixtures();
+    return delay([...ROUTES]);
+  });
 }
 
 export async function getRouteById(id: number): Promise<ThemedRoute | null> {
@@ -284,6 +328,7 @@ export async function scanGravestone(
   }
 
   // Demo mode: pretend we recognised the nearest curated grave.
+  const { PERSONS } = await loadFixtures();
   const nearby = await getNearbyPersons(coords, 3, 50_000);
   const pool =
     nearby.length > 0

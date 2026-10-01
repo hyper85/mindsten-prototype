@@ -30,9 +30,9 @@ export function CategoryIcon({
 }
 
 export function CategoryPill({ category }: { category: PersonCategory }) {
-  const { icon: Icon, color, soft } = CATEGORY_STYLE[category];
+  const { icon: Icon, ink, soft } = CATEGORY_STYLE[category];
   return (
-    <span className="cat-pill" style={{ background: soft, color }}>
+    <span className="cat-pill" style={{ background: soft, color: ink }}>
       <Icon aria-hidden="true" />
       {CATEGORY_META[category].label}
     </span>

@@ -1,17 +1,30 @@
+import { useState } from 'react';
 import { CATEGORY_STYLE } from '../lib/categories';
-import { initials } from '../lib/format';
+import { imageAtWidth, initials } from '../lib/format';
 import type { Person } from '../types';
 
 export function Avatar({ person, size = 44 }: { person: Person; size?: number }) {
-  const { color, soft } = CATEGORY_STYLE[person.category];
+  const { ink, soft } = CATEGORY_STYLE[person.category];
+  // Fall back to the monogram when the portrait can't load (offline, removed file).
+  const [failed, setFailed] = useState(false);
+  const src = person.imageUrl && !failed ? imageAtWidth(person.imageUrl, size) : null;
   return (
     <span
       className="avatar"
-      style={{ width: size, height: size, background: soft, color, fontSize: size * 0.38 }}
+      style={{ width: size, height: size, background: soft, color: ink, fontSize: size * 0.38 }}
       aria-hidden="true"
     >
-      {person.imageUrl ? (
-        <img src={person.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
+      {src ? (
+        <img
+          src={src}
+          alt=""
+          width={size}
+          height={size}
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onError={() => setFailed(true)}
+        />
       ) : (
         initials(person.name)
       )}

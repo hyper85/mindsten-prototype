@@ -10,6 +10,7 @@ import { EmptyState, LoadingState } from '../components/StatePanel';
 import { getPersonsByIds, getRouteById } from '../lib/api';
 import { directionsUrl } from '../lib/geo';
 import type { Person, ThemedRoute } from '../types';
+import { useDocumentTitle } from '../lib/title';
 
 export function RoutePage() {
   const { id } = useParams<{ id: string }>();
@@ -17,6 +18,7 @@ export function RoutePage() {
   const [route, setRoute] = useState<ThemedRoute | null | undefined>(undefined);
   const [stops, setStops] = useState<Person[] | null>(null);
 
+  useDocumentTitle(route?.title);
   useEffect(() => {
     let cancelled = false;
     getRouteById(Number(id))

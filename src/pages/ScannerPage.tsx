@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useNavigationType } from 'react-router-dom';
 import { Images, Search, X, Zap } from 'lucide-react';
 import { List } from '../components/List';
 import { PersonRow } from '../components/PersonRow';
@@ -9,11 +9,36 @@ import { getCurrentPosition } from '../lib/geo';
 import { incrementScanCount } from '../lib/storage';
 import { isSupabaseConfigured } from '../lib/supabase';
 import type { ScanResult } from '../types';
+import { useDocumentTitle } from '../lib/title';
 
 type CameraState = 'starting' | 'live' | 'unavailable' | 'denied';
 type Phase = 'aim' | 'processing' | 'result';
 
 const MAX_EDGE_PX = 1280;
+const LAST_SCAN_KEY = 'mindsten.scan.last';
+const LAST_SCAN_TTL_MS = 15 * 60 * 1000;
+
+/** The last result, so "back" from a person returns to it instead of a new (paid) scan. */
+function loadLastScan(): ScanResult | null {
+  try {
+    const raw = window.sessionStorage.getItem(LAST_SCAN_KEY);
+    if (!raw) return null;
+    const { at, result } = JSON.parse(raw) as { at: number; result: ScanResult };
+    return Date.now() - at < LAST_SCAN_TTL_MS ? result : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveLastScan(result: ScanResult | null): void {
+  try {
+    if (result)
+      window.sessionStorage.setItem(LAST_SCAN_KEY, JSON.stringify({ at: Date.now(), result }));
+    else window.sessionStorage.removeItem(LAST_SCAN_KEY);
+  } catch {
+    /* storage unavailable — ignore */
+  }
+}
 
 /** Draws a video frame or image onto a canvas, downscaled, and returns base64 JPEG. */
 function toJpegBase64(source: CanvasImageSource, width: number, height: number): string {
@@ -50,16 +75,20 @@ function fileToBase64(file: File): Promise<string> {
 
 export function ScannerPage() {
   const navigate = useNavigate();
+  const navigationType = useNavigationType();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [camera, setCamera] = useState<CameraState>('starting');
   const [torch, setTorch] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
-  const [phase, setPhase] = useState<Phase>('aim');
-  const [result, setResult] = useState<ScanResult | null>(null);
+  const [result, setResult] = useState<ScanResult | null>(() =>
+    navigationType === 'POP' ? loadLastScan() : null,
+  );
+  const [phase, setPhase] = useState<Phase>(() => (result ? 'result' : 'aim'));
   const [error, setError] = useState<string | null>(null);
 
+  useDocumentTitle('Scan gravsten');
   useEffect(() => {
     let cancelled = false;
     const media = typeof navigator !== 'undefined' ? navigator.mediaDevices : undefined;
@@ -103,6 +132,20 @@ export function ScannerPage() {
     };
   }, []);
 
+  // No need to render the camera behind the result sheet.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || camera !== 'live') return;
+    if (phase === 'result') video.pause();
+    else void video.play().catch(() => undefined);
+  }, [phase, camera]);
+
+  const close = () => {
+    const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+    if (idx > 0) navigate(-1);
+    else navigate('/home', { replace: true });
+  };
+
   const toggleTorch = async () => {
     const track = streamRef.current?.getVideoTracks()[0];
     if (!track) return;
@@ -121,6 +164,7 @@ export function ScannerPage() {
       const coords = await getCurrentPosition(5000);
       const scan = await scanGravestone(image, coords);
       incrementScanCount();
+      saveLastScan(scan);
       setResult(scan);
       setPhase('result');
     } catch (err) {
@@ -163,12 +207,7 @@ export function ScannerPage() {
       <div className="scanner-shade" />
 
       <div className="scanner-top">
-        <button
-          type="button"
-          className="glass-btn"
-          aria-label="Luk scanner"
-          onClick={() => navigate('/home')}
-        >
+        <button type="button" className="glass-btn" aria-label="Luk scanner" onClick={close}>
           <X aria-hidden="true" />
         </button>
         <div className="scanner-title">Scan gravsten</div>
@@ -214,6 +253,7 @@ export function ScannerPage() {
           className="glass-btn"
           aria-label="Vælg foto"
           onClick={() => fileRef.current?.click()}
+          disabled={phase === 'processing'}
         >
           <Images aria-hidden="true" />
         </button>
@@ -241,7 +281,11 @@ export function ScannerPage() {
         accept="image/*"
         capture="environment"
         hidden
-        onChange={(e) => void onFile(e.target.files?.[0])}
+        onChange={(e) => {
+          void onFile(e.target.files?.[0]);
+          // Allow picking the same photo again.
+          e.target.value = '';
+        }}
       />
 
       {phase === 'processing' && (
@@ -331,6 +375,7 @@ export function ScannerPage() {
             className="btn btn-plain"
             style={{ marginTop: 6 }}
             onClick={() => {
+              saveLastScan(null);
               setResult(null);
               setPhase('aim');
             }}

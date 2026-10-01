@@ -1,4 +1,5 @@
 import { Camera, Hourglass, MapPin, ShieldCheck, Sparkles } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import { AppMark } from '../components/Illustrations';
 
 interface Props {
@@ -33,8 +34,18 @@ const FEATURES = [
 ];
 
 export function OnboardingOverlay({ onDone }: Props) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  // Start keyboard/screen-reader users inside the dialog.
+  useEffect(() => dialogRef.current?.focus({ preventScroll: true }), []);
   return (
-    <div className="welcome" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+    <div
+      ref={dialogRef}
+      className="welcome"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="welcome-title"
+      tabIndex={-1}
+    >
       <AppMark className="welcome-icon" />
       <h1 id="welcome-title" className="welcome-title">
         Velkommen til <span>MindSTEN</span>

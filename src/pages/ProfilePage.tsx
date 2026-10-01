@@ -15,6 +15,7 @@ import {
 } from '../lib/storage';
 import { showToast } from '../lib/toast';
 import type { Person } from '../types';
+import { useDocumentTitle } from '../lib/title';
 
 const readStats = () => ({
   scans: getScanCount(),
@@ -46,6 +47,7 @@ export function ProfilePage() {
   const [favorites, setFavorites] = useState<Person[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  useDocumentTitle('Profil');
   useEffect(() => {
     let cancelled = false;
     getPersonsByIds(stats.favorites.slice(0, 20)).then((p) => !cancelled && setFavorites(p));
@@ -61,7 +63,8 @@ export function ProfilePage() {
     a.href = url;
     a.download = 'mindsten-data.json';
     a.click();
-    URL.revokeObjectURL(url);
+    // Revoking right away can cancel the download in iOS Safari.
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
     showToast('Dine data er hentet');
   };
 

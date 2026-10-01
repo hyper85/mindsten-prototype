@@ -9,6 +9,7 @@ import { EmptyState, LoadingState } from '../components/StatePanel';
 import { getCemeteries, getPersons, searchPersons } from '../lib/api';
 import { CATEGORY_META, PERSON_CATEGORIES } from '../lib/format';
 import type { Cemetery, Person, PersonCategory } from '../types';
+import { useDocumentTitle } from '../lib/title';
 
 function normalize(s: string) {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -33,12 +34,14 @@ export function SearchPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [query, setQuery] = useState(params.get('q') ?? '');
-  const [category, setCategory] = useState<PersonCategory | null>(
-    (params.get('kategori') as PersonCategory | null) ?? null,
-  );
+  const [category, setCategory] = useState<PersonCategory | null>(() => {
+    const value = params.get('kategori');
+    return PERSON_CATEGORIES.includes(value as PersonCategory) ? (value as PersonCategory) : null;
+  });
   const [results, setResults] = useState<Person[] | null>(null);
   const [cemeteries, setCemeteries] = useState<Cemetery[]>([]);
 
+  useDocumentTitle('Søg');
   useEffect(() => {
     getCemeteries()
       .then(setCemeteries)
@@ -52,7 +55,9 @@ export function SearchPage() {
     const next = new URLSearchParams();
     if (q) next.set('q', q);
     if (category) next.set('kategori', category);
-    setParams(next, { replace: true });
+    if (next.toString() !== new URLSearchParams(window.location.search).toString()) {
+      setParams(next, { replace: true });
+    }
 
     if (q.length < 2 && !category) {
       setResults(null);
@@ -60,11 +65,15 @@ export function SearchPage() {
     }
     setResults(null);
     const handle = setTimeout(async () => {
-      const found =
-        q.length >= 2
-          ? await searchPersons(q, 50)
-          : await getPersons({ category: category ?? undefined, limit: 200 });
-      if (!cancelled) setResults(category ? found.filter((p) => p.category === category) : found);
+      try {
+        const found =
+          q.length >= 2
+            ? await searchPersons(q, 50)
+            : await getPersons({ category: category ?? undefined, limit: 200 });
+        if (!cancelled) setResults(category ? found.filter((p) => p.category === category) : found);
+      } catch {
+        if (!cancelled) setResults([]);
+      }
     }, 220);
     return () => {
       cancelled = true;

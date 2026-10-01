@@ -1,7 +1,9 @@
 import { AppMark } from '../components/Illustrations';
 import { NavBar, Page } from '../components/Layout';
+import { useDocumentTitle } from '../lib/title';
 
 export function AboutPage() {
+  useDocumentTitle('Om appen');
   return (
     <>
       <NavBar title="Om MindSTEN" fallback="/profile" />
@@ -66,7 +68,8 @@ export function AboutPage() {
             <p>
               Du behøver ingen konto. Din historik, dine favoritter og din statistik ligger kun på
               din egen telefon og kan eksporteres eller slettes under Profil. Din placering bruges
-              kun, når du selv beder om det, og sendes kun med en scanning eller et bidrag.
+              kun, hvis du giver lov, og sendes kun for at finde grave i nærheden, med en scanning
+              eller med et bidrag. Den gemmes ikke.
             </p>
             <p>
               Vi viser kun personer, der har været døde i mindst 10 år (jf. databeskyttelseslovens §

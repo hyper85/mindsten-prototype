@@ -15,6 +15,7 @@ personer med kendt gravsted i Danmark fra Wikidata og dansk Wikipedia.
 | --- | --- |
 | **Scan** | Kamera (eller foto-upload) → Claude læser stenen → match på navn, årstal og GPS → op til 5 kandidater med match-procent |
 | **Person** | Portræt, datoer, alder, fødested, biografi, tidslinje, "Vis vej" til graven, kilder, del/favorit |
+| **Spørg om …** | AI-guide: stil dine egne spørgsmål om personen og tiden (svar ud fra biografi og kuraterede fakta) |
 | **Tidsvindue** | Regenter i levetiden, begivenheder med personens alder, befolkningstal, hverdagsliv pr. periode + AI-fortælling om tiden (cachet) |
 | **Hjem** | Grave i nærheden (GPS), "På denne dag", temaruter |
 | **Kort** | OpenStreetMap med alle kendte grave, kategorifiltre, grupperede markører pr. kirkegård |
@@ -23,8 +24,12 @@ personer med kendt gravsted i Danmark fra Wikidata og dansk Wikipedia.
 | **Profil** | Lokal historik, favoritter, statistik, eksport/sletning af data (GDPR) |
 | **Tilføj en grav** | Brugerbidrag og rettelser til redaktionel godkendelse |
 
-Appen er en PWA: den kan lægges på hjemmeskærmen, og kort og portrætter caches til dårlig dækning på
-kirkegården.
+Appen er en PWA: den kan lægges på hjemmeskærmen (med genveje til Scan, Kort og Søg), opdaterer
+sig selv, når der er en ny version, og virker med dårlig dækning på kirkegården — sete personer,
+kortfliser og portrætter gemmes, og en diskret bjælke viser, når telefonen er offline.
+
+**Kvalitet:** WCAG AA-kontrast og axe-scannet uden fejl, Lighthouse 100 i tilgængelighed, best
+practices og SEO, sider indlæses først når de bruges, og en streng Content-Security-Policy.
 
 ## Design
 

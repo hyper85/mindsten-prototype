@@ -28,6 +28,7 @@ import { directionsUrl } from '../lib/geo';
 import { isFavorite, recordVisit, toggleFavorite } from '../lib/storage';
 import { showToast } from '../lib/toast';
 import type { Person } from '../types';
+import { useDocumentTitle } from '../lib/title';
 
 type Status = 'loading' | 'ok' | 'not-found' | 'error';
 
@@ -38,15 +39,18 @@ function yearsLabel(person: Person): string {
 /** The hero: the person's portrait in an arched frame, or a drawn gravestone. */
 function Memorial({ person }: { person: Person }) {
   const glow = CATEGORY_STYLE[person.category].soft;
+  const [imageFailed, setImageFailed] = useState(false);
   return (
     <div className="memorial" style={{ ['--memorial-glow' as string]: glow }}>
-      {person.imageUrl ? (
+      {person.imageUrl && !imageFailed ? (
         <div>
           <div className="portrait">
             <img
               src={person.imageUrl}
               alt={`Portræt af ${person.name}`}
               referrerPolicy="no-referrer"
+              decoding="async"
+              onError={() => setImageFailed(true)}
             />
           </div>
           {person.imageCredit && <div className="portrait-credit">{person.imageCredit}</div>}
@@ -69,6 +73,7 @@ export function PersonPage() {
   const location = useLocation();
   const matchScore = (location.state as { matchScore?: number } | null)?.matchScore;
   const [person, setPerson] = useState<Person | null>(null);
+  useDocumentTitle(person?.name);
   const [status, setStatus] = useState<Status>('loading');
   const [expanded, setExpanded] = useState(false);
   const [favorite, setFavorite] = useState(false);
@@ -152,8 +157,8 @@ export function PersonPage() {
         await navigator.clipboard.writeText(`${text}\n${url}`);
         showToast('Link kopieret');
       }
-    } catch {
-      /* user cancelled */
+    } catch (err) {
+      if ((err as { name?: string })?.name !== 'AbortError') showToast('Kunne ikke dele linket');
     }
   };
 
@@ -203,7 +208,9 @@ export function PersonPage() {
             type="button"
             className="action"
             aria-disabled={!hasLocation}
-            onClick={() => navigate(`/map?focus=${person.id}&lat=${person.lat}&lng=${person.lng}`)}
+            onClick={() =>
+              hasLocation && navigate(`/map?focus=${person.id}&lat=${person.lat}&lng=${person.lng}`)
+            }
           >
             <MapIcon aria-hidden="true" />
             Kort

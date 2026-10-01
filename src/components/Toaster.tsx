@@ -18,11 +18,15 @@ export function Toaster() {
     };
   }, []);
 
-  if (!message) return null;
+  // The live region stays mounted so screen readers reliably announce new messages.
   return (
-    <div className="toast" role="status" aria-live="polite">
-      <CircleCheck aria-hidden="true" />
-      {message}
+    <div role="status" aria-live="polite">
+      {message && (
+        <div className="toast">
+          <CircleCheck aria-hidden="true" />
+          {message}
+        </div>
+      )}
     </div>
   );
 }

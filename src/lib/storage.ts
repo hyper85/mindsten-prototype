@@ -85,6 +85,10 @@ export function clearLocalData(): void {
   try {
     for (const key of Object.values(KEYS)) window.localStorage.removeItem(key);
     window.localStorage.removeItem('mindsten.onboarded.v1');
+    // AI-guide conversations and the last scan live in sessionStorage.
+    for (const key of Object.keys(window.sessionStorage)) {
+      if (key.startsWith('mindsten.')) window.sessionStorage.removeItem(key);
+    }
     window.dispatchEvent(new Event('mindsten:storage'));
   } catch {
     /* ignore */

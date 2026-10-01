@@ -5,6 +5,7 @@ import { NavBar, Page } from '../components/Layout';
 import { EmptyState } from '../components/StatePanel';
 import { submitGrave } from '../lib/api';
 import { getCurrentPosition } from '../lib/geo';
+import { useDocumentTitle } from '../lib/title';
 
 interface Prefill {
   name?: string;
@@ -19,6 +20,7 @@ const toYear = (v: string): number | null => {
 
 export function SubmitPage() {
   const navigate = useNavigate();
+  useDocumentTitle('Tilføj en grav');
   const state = (useLocation().state ?? {}) as {
     prefill?: Prefill | null;
     inscription?: string;
@@ -79,6 +81,7 @@ export function SubmitPage() {
     <>
       <NavBar title={isCorrection ? 'Foreslå rettelse' : 'Tilføj en grav'} staticTitle />
       <Page>
+        <h1 className="visually-hidden">{isCorrection ? 'Foreslå rettelse' : 'Tilføj en grav'}</h1>
         <p className="muted" style={{ fontSize: 15, lineHeight: 1.5, margin: '8px 4px 20px' }}>
           {isCorrection
             ? 'Fortæl os, hvad der er forkert, og gerne hvor du har oplysningen fra.'

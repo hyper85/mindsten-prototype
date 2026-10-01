@@ -11,6 +11,7 @@ import { getNearbyPersons, getPersons, getRoutes, type NearbyPerson } from '../l
 import { formatToday, greeting } from '../lib/format';
 import { useGeolocation } from '../lib/geo';
 import type { Person, ThemedRoute } from '../types';
+import { useDocumentTitle } from '../lib/title';
 
 /** Persons born or died on today's day-of-month. */
 function onThisDay(persons: Person[], today = new Date()) {
@@ -62,6 +63,7 @@ export function HomePage() {
   const [routes, setRoutes] = useState<ThemedRoute[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  useDocumentTitle(null);
   useEffect(() => {
     let cancelled = false;
     Promise.all([getRoutes(), getPersons({ limit: 500 })])

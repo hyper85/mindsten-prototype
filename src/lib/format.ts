@@ -141,3 +141,19 @@ export function personSubtitle(person: Person): string {
     .filter(Boolean)
     .join(' · ');
 }
+
+/**
+ * Wikimedia Commons serves resized images via `Special:FilePath/...?width=N`; ask for the
+ * size we actually draw (×2 for retina) instead of the 640px portrait.
+ */
+export function imageAtWidth(url: string, cssPx: number): string {
+  if (!/^https:\/\/commons\.wikimedia\.org\/wiki\/Special:FilePath\//.test(url)) return url;
+  const width = Math.ceil((cssPx * 2) / 40) * 40;
+  try {
+    const u = new URL(url);
+    u.searchParams.set('width', String(width));
+    return u.toString();
+  } catch {
+    return url;
+  }
+}

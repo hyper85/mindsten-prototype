@@ -109,6 +109,17 @@ svg {
   border-radius: 6px;
 }
 
+/* Text inputs hide their own outline; the surrounding field shows focus instead. */
+.search-field:focus-within,
+.map-search:focus-within,
+.composer-row textarea:focus {
+  box-shadow: 0 0 0 2px rgba(45, 106, 79, 0.4);
+}
+
+.field:focus-within label {
+  color: var(--tint);
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -198,6 +209,30 @@ svg {
 
 .device-screen.is-immersive .home-indicator {
   background: rgba(255, 255, 255, 0.85);
+}
+
+/* No connection: a slim bar under the status bar, like iOS. */
+.offline-bar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 16px 7px;
+  background: var(--bg);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.offline-bar svg {
+  width: 15px;
+  height: 15px;
+}
+
+.device-screen.is-immersive .offline-bar {
+  background: #000;
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .screen {
@@ -839,7 +874,7 @@ a.row:active {
   flex-shrink: 0;
   align-items: center;
   gap: 6px;
-  height: 34px;
+  height: 36px;
   padding: 0 14px;
   border: 0;
   border-radius: 999px;
@@ -987,6 +1022,7 @@ a.row:active {
 }
 
 .search-clear {
+  position: relative;
   display: grid;
   place-items: center;
   width: 20px;
@@ -995,6 +1031,12 @@ a.row:active {
   border-radius: 50%;
   background: #b3aea5;
   color: #fff;
+}
+
+.search-clear::before {
+  position: absolute;
+  inset: -12px;
+  content: '';
 }
 
 .search-clear svg {
@@ -1343,7 +1385,7 @@ a.row:active {
   margin-top: 14px;
   max-width: 260px;
   overflow: hidden;
-  color: var(--text-3);
+  color: var(--text-2);
   font-size: 11px;
   text-align: center;
   white-space: nowrap;
@@ -1566,7 +1608,7 @@ a.row:active {
 
 .tl-age {
   margin-left: 6px;
-  color: var(--text-3);
+  color: var(--text-2);
   font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
@@ -1789,7 +1831,7 @@ a.row:active {
   padding: 5px 0 3px;
   border: 0;
   background: none;
-  color: #948f86;
+  color: #726d65;
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.01em;
@@ -1843,6 +1885,10 @@ a.row:active {
   padding: calc(64px + var(--safe-top)) 32px calc(24px + var(--safe-bottom));
   background: var(--bg-elevated);
   animation: page-in 0.4s var(--ease) both;
+}
+
+.welcome:focus {
+  outline: none;
 }
 
 .welcome-icon {
@@ -1992,6 +2038,10 @@ a.row:active {
 .glass-btn.is-on {
   background: #fff;
   color: #111;
+}
+
+.glass-btn:disabled {
+  opacity: 0.4;
 }
 
 .frame {
@@ -2194,6 +2244,7 @@ a.row:active {
 }
 
 .grabber {
+  position: relative;
   display: block;
   width: 38px;
   height: 5px;
@@ -2201,6 +2252,13 @@ a.row:active {
   border: 0;
   border-radius: 3px;
   background: #d3cec4;
+}
+
+/* The visible handle is tiny; the touch target is not. */
+.grabber::before {
+  position: absolute;
+  inset: -16px -40px;
+  content: '';
 }
 
 .sheet-title {
@@ -2866,9 +2924,9 @@ a.row:active {
   flex: 1;
   min-width: 0;
   max-height: 120px;
-  padding: 10px 16px;
+  padding: 11px 16px;
   border: 0;
-  border-radius: 21px;
+  border-radius: 22px;
   outline: none;
   background: var(--bg-elevated);
   box-shadow:
@@ -2888,8 +2946,8 @@ a.row:active {
   display: grid;
   flex-shrink: 0;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border: 0;
   border-radius: 50%;
   background: var(--tint);
@@ -2910,7 +2968,7 @@ a.row:active {
 
 .composer-note {
   margin-top: 6px;
-  color: var(--text-3);
+  color: var(--text-2);
   font-size: 11.5px;
   text-align: center;
 }

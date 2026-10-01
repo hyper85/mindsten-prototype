@@ -11,6 +11,7 @@ import { formatNumber } from '../lib/format';
 import { recordTimeWindow } from '../lib/storage';
 import { isSupabaseConfigured } from '../lib/supabase';
 import type { EraStory, Person } from '../types';
+import { useDocumentTitle } from '../lib/title';
 
 type StoryState = 'idle' | 'loading' | 'ok' | 'failed';
 
@@ -26,15 +27,27 @@ const PERIOD_COLORS: Record<string, string> = {
   digital: '#6c7fd1',
 };
 
+// Darker variants for the small period labels (WCAG AA on white).
+const PERIOD_INK: Record<string, string> = {
+  ...PERIOD_COLORS,
+  enevaelde: '#8d6e32',
+  guldalder: '#8c6e29',
+  demokrati: '#537c63',
+  verdenskrige: '#6d7680',
+  velfaerd: '#4779a6',
+  digital: '#5f70b8',
+};
+
 export function TimeWindowPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [person, setPerson] = useState<Person | null>(null);
-  const [status, setStatus] = useState<'loading' | 'ok' | 'not-found'>('loading');
+  const [status, setStatus] = useState<'loading' | 'ok' | 'not-found' | 'error'>('loading');
   const [story, setStory] = useState<EraStory | null>(null);
   const [storyState, setStoryState] = useState<StoryState>('idle');
   const [scope, setScope] = useState<'all' | 'dk'>('all');
 
+  useDocumentTitle(person ? `Tidsvindue · ${person.name}` : 'Tidsvindue');
   useEffect(() => {
     let cancelled = false;
     getPersonById(Number(id))
@@ -48,25 +61,28 @@ export function TimeWindowPage() {
           setStatus('not-found');
         }
       })
-      .catch(() => !cancelled && setStatus('not-found'));
+      .catch(() => !cancelled && setStatus('error'));
     return () => {
       cancelled = true;
     };
   }, [id]);
 
+  // Only with both years known — a guessed lifespan would present invented facts.
   const snapshot = useMemo(() => {
-    if (!person) return null;
-    const from = person.birthYear ?? (person.deathYear ? person.deathYear - 60 : null);
-    const to = person.deathYear ?? (person.birthYear ? person.birthYear + 60 : null);
-    return from !== null && to !== null ? buildEraSnapshot(from, to) : null;
+    if (!person?.birthYear || !person.deathYear) return null;
+    return buildEraSnapshot(person.birthYear, person.deathYear);
   }, [person]);
 
   const loadStory = async () => {
     if (!person) return;
     setStoryState('loading');
-    const result = await getEraStory(person.id);
-    setStory(result);
-    setStoryState(result ? 'ok' : 'failed');
+    try {
+      const result = await getEraStory(person.id);
+      setStory(result);
+      setStoryState(result ? 'ok' : 'failed');
+    } catch {
+      setStoryState('failed');
+    }
   };
 
   if (status === 'loading') {
@@ -79,14 +95,19 @@ export function TimeWindowPage() {
   }
 
   if (!person || !snapshot) {
+    const failed = status === 'error';
     return (
       <>
-        <NavBar />
+        <NavBar fallback={person ? `/person/${person.id}` : '/home'} />
         <EmptyState
-          title="Tidsvindue ikke tilgængeligt"
-          description="Vi mangler årstal for personen."
-          actionLabel="Tilbage"
-          onAction={() => navigate(-1)}
+          title={failed ? 'Kunne ikke hente personen' : 'Tidsvindue ikke tilgængeligt'}
+          description={
+            failed
+              ? 'Tjek din forbindelse, og prøv igen om et øjeblik.'
+              : 'Vi kender ikke både fødsels- og dødsår for personen.'
+          }
+          actionLabel={person ? 'Til personen' : 'Til forsiden'}
+          onAction={() => navigate(person ? `/person/${person.id}` : '/home')}
         />
       </>
     );
@@ -289,7 +310,7 @@ export function TimeWindowPage() {
           <div className="stack-sm">
             {snapshot.periods.map((p) => (
               <div key={p.id} className="card">
-                <div className="eyebrow" style={{ color: PERIOD_COLORS[p.id] }}>
+                <div className="eyebrow" style={{ color: PERIOD_INK[p.id] ?? 'var(--text-2)' }}>
                   {p.name} · {Math.max(p.from, snapshot.birthYear)}–
                   {Math.min(p.to, snapshot.deathYear)}
                 </div>

@@ -8,6 +8,7 @@ import { askAboutPerson, AskError, getPersonById, type AskTurn } from '../lib/ap
 import { genitive, suggestedQuestions } from '../lib/ask';
 import { isSupabaseConfigured } from '../lib/supabase';
 import type { Person } from '../types';
+import { useDocumentTitle } from '../lib/title';
 
 interface ChatEntry extends AskTurn {
   error?: boolean;
@@ -52,6 +53,7 @@ export function AskPage() {
   const location = useLocation();
   const initialQuestion = (location.state as { question?: string } | null)?.question;
   const [person, setPerson] = useState<Person | null | undefined>(undefined);
+  useDocumentTitle(person ? `Spørg om ${person.name}` : 'Spørg om');
   const [entries, setEntries] = useState<ChatEntry[]>([]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);

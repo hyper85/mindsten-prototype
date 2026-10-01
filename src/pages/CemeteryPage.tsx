@@ -8,6 +8,7 @@ import { EmptyState, LoadingState } from '../components/StatePanel';
 import { getCemeteryById, getPersons } from '../lib/api';
 import { directionsUrl } from '../lib/geo';
 import type { Cemetery, Person } from '../types';
+import { useDocumentTitle } from '../lib/title';
 
 export function CemeteryPage() {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +16,7 @@ export function CemeteryPage() {
   const [cemetery, setCemetery] = useState<Cemetery | null | undefined>(undefined);
   const [persons, setPersons] = useState<Person[] | null>(null);
 
+  useDocumentTitle(cemetery?.name);
   useEffect(() => {
     let cancelled = false;
     const cemeteryId = Number(id);
@@ -23,7 +25,7 @@ export function CemeteryPage() {
         if (cancelled) return;
         setCemetery(c);
         setPersons(
-          p.sort((a, b) => b.confidence - a.confidence || a.name.localeCompare(b.name, 'da')),
+          [...p].sort((a, b) => b.confidence - a.confidence || a.name.localeCompare(b.name, 'da')),
         );
       })
       .catch(() => !cancelled && setCemetery(null));

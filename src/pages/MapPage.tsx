@@ -9,6 +9,7 @@ import { getPersons } from '../lib/api';
 import { CATEGORY_FILTERS } from '../lib/format';
 import { distanceMeters, useGeolocation, type Coords } from '../lib/geo';
 import type { CategoryFilter, Person } from '../types';
+import { useDocumentTitle } from '../lib/title';
 
 const MapView = lazy(() => import('../components/MapView'));
 
@@ -35,6 +36,7 @@ export function MapPage() {
   );
   const [query, setQuery] = useState('');
 
+  useDocumentTitle('Kort');
   useEffect(() => {
     let cancelled = false;
     getPersons().then((result) => !cancelled && setPersons(result));
@@ -152,7 +154,8 @@ export function MapPage() {
           <button
             type="button"
             className="grabber"
-            aria-label={expanded ? 'Gør listen mindre' : 'Gør listen større'}
+            aria-label="Vis hele listen"
+            aria-expanded={expanded}
             onClick={() => setExpanded(!expanded)}
           />
           <div className="section-header" style={{ marginBottom: 0 }}>
