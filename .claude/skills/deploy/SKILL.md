@@ -11,7 +11,7 @@ unless the user explicitly provides tokens.
 | Piece | Where it runs | Deployed by |
 | --- | --- | --- |
 | Web app (Vite + React PWA) | Vercel | Vercel Git integration on every push (preview per PR, production on `main`) |
-| Postgres schema + seed | Supabase | `.github/workflows/supabase-deploy.yml` (`supabase db push --include-seed`) |
+| Postgres schema + seed | Supabase | `.github/workflows/supabase-deploy.yml` (runs the CI workflow first, then `supabase db push --include-seed`) |
 | Edge Functions `scan-gravestone`, `era-story`, `ask-person` | Supabase | same workflow (`supabase functions deploy --use-api`) |
 | Wikidata import | GitHub Actions | `.github/workflows/import-data.yml` (monthly + manual) |
 
@@ -55,7 +55,11 @@ unless the user explicitly provides tokens.
 `LLM_MODEL` (default `claude-opus-5-5` with Anthropic, `claude-sonnet-4-5` with OpenCode),
 `LLM_BASE_URL` (OpenCode gateway, default `https://opencode.ai/zen`), `SCAN_LIMIT_PER_HOUR` (40/IP), `SCAN_LIMIT_PER_DAY` (3000 total),
 `STORY_LIMIT_PER_HOUR` (20/IP), `STORY_LIMIT_PER_DAY` (1000 total), `ASK_LIMIT_PER_HOUR` (30/IP),
-`ASK_LIMIT_PER_DAY` (3000 total). Set with
+`ASK_LIMIT_PER_DAY` (3000 total), `ALLOWED_ORIGINS` (comma-separated browser origins allowed to call
+the functions, `*.vercel.app` style wildcards allowed; unset = any origin; others get 403),
+`ASK_SIGNING_KEY` (HMAC key for AI-guide answer signatures; defaults to the service role key).
+The deploy workflow passes `LLM_MODEL`, `ALLOWED_ORIGINS` and `ASK_SIGNING_KEY` through from GitHub
+secrets of the same name; deleting a GitHub secret does not unset it in Supabase. Set others with
 `supabase secrets set --project-ref <ref> NAME=value`.
 
 ## Troubleshooting
@@ -63,6 +67,9 @@ unless the user explicitly provides tokens.
 - `Missing secrets:` in the workflow → step 2.
 - `db push` wants to re-apply `0001_init.sql` on a project that was set up by hand in the SQL editor:
   harmless — all migrations are idempotent. Alternatively `supabase migration repair --status applied 0001`.
+- Function error codes: 400 `invalid_json`, 403 `origin_not_allowed` (check `ALLOWED_ORIGINS`),
+  404 unknown person, 413 `payload_too_large` / `image_too_large`, 429 rate limited,
+  500 `internal_error` (see the function logs).
 - Function returns 401 → `supabase/config.toml` must keep `verify_jwt = false` for every function
   (the browser calls them with the anon/publishable key).
 - Deep links 404 on Vercel → check the SPA rewrite in `vercel.json`.

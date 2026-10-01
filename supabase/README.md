@@ -4,10 +4,15 @@
   `0002_full_app.sql` adds cemeteries, geo/fuzzy search functions, scan matching, the AI story
   cache, grave submissions and rate limiting. `0003_person_answers.sql` caches AI-guide answers to
   first questions.
+  `0004_hardening.sql` replaces `match_gravestone`/`search_persons` with index-friendly,
+  input-capped versions (match is service-role only), adds data-integrity triggers on `persons`
+  (10-year rule, curated rows can't be overwritten, years follow dates, AI caches cleared on
+  edits), sanity checks on submissions and explicit grants.
 - `seed.sql` — **generated** from `src/data/*.ts` by `npm run seed:generate`.
 - `functions/` — Edge Functions (Deno): `scan-gravestone`, `era-story`, `ask-person`; `_shared/` holds code
   shared with the web app.
-- `tests/` — run migrations + seed + `functions.sql` on plain Postgres (CI does this).
+- `tests/` — run migrations + seed + `functions.sql` + `hardening.sql` (RLS/grants as `anon`,
+  triggers) on plain Postgres (CI does this).
 - `config.toml` — CLI config (`verify_jwt = false` for the public functions).
 
 Deploying: see `.claude/skills/deploy/SKILL.md`.
@@ -25,4 +30,4 @@ Deploying: see `.claude/skills/deploy/SKILL.md`.
 
 - `nearby_persons(lat, lng, radius_m, limit)` → `(person_id, distance_m)`
 - `search_persons(query, limit)` → `(person_id, score)` — accent-insensitive trigram search
-- `match_gravestone(names[], birth_year, death_year, lat, lng, limit)` → `(person_id, score 0–100, distance_m)`
+- `match_gravestone(names[], birth_year, death_year, lat, lng, limit)` → `(person_id, score 0–100, distance_m)` — service role only

@@ -84,14 +84,14 @@ export function AskPage() {
       if (!person || q.length < 2 || busy) return;
       const history: AskTurn[] = entries
         .filter((e) => !e.error)
-        .map(({ role, content }) => ({ role, content }));
+        .map(({ role, content, sig }) => ({ role, content, sig }));
       const withQuestion: ChatEntry[] = [...entries, { role: 'user', content: q }];
       setEntries(withQuestion);
       setDraft('');
       setBusy(true);
       try {
-        const answer = await askAboutPerson(person.id, q, history);
-        const next: ChatEntry[] = [...withQuestion, { role: 'assistant', content: answer }];
+        const { answer, sig } = await askAboutPerson(person.id, q, history);
+        const next: ChatEntry[] = [...withQuestion, { role: 'assistant', content: answer, sig }];
         setEntries(next);
         saveConversation(person.id, next);
       } catch (err) {

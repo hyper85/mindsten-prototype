@@ -15,7 +15,7 @@ interface Prefill {
 
 const toYear = (v: string): number | null => {
   const n = Number(v);
-  return v.trim() && Number.isInteger(n) && n >= 800 && n <= 2100 ? n : null;
+  return v.trim() && Number.isInteger(n) && n >= 800 && n <= new Date().getFullYear() ? n : null;
 };
 
 export function SubmitPage() {
@@ -43,17 +43,25 @@ export function SubmitPage() {
         : '',
   );
   const [attachLocation, setAttachLocation] = useState(!isCorrection);
-  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'offline' | 'failed'>('idle');
+  const [status, setStatus] = useState<
+    'idle' | 'sending' | 'sent' | 'offline' | 'failed' | 'invalid-years'
+  >('idle');
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (name.trim().length < 2) return;
+    const born = toYear(birthYear);
+    const died = toYear(deathYear);
+    if (born !== null && died !== null && born > died) {
+      setStatus('invalid-years');
+      return;
+    }
     setStatus('sending');
     const coords = attachLocation ? await getCurrentPosition(6000) : null;
     const result = await submitGrave({
       name: name.trim(),
-      birthYear: toYear(birthYear),
-      deathYear: toYear(deathYear),
+      birthYear: born,
+      deathYear: died,
       cemetery: cemetery.trim(),
       lat: coords?.lat ?? null,
       lng: coords?.lng ?? null,
@@ -169,6 +177,11 @@ export function SubmitPage() {
           {status === 'offline' && (
             <p className="footnote center">
               Appen kører uden server, så bidrag kan ikke sendes endnu.
+            </p>
+          )}
+          {status === 'invalid-years' && (
+            <p className="footnote center" role="alert" style={{ color: 'var(--danger)' }}>
+              Fødselsåret skal ligge før dødsåret.
             </p>
           )}
           {status === 'failed' && (

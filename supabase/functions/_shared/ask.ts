@@ -4,11 +4,18 @@ import { buildEraSnapshot, eraSnapshotToPromptContext } from './era.ts';
 
 export const MAX_QUESTION_CHARS = 500;
 export const MAX_HISTORY_MESSAGES = 6;
+/** Raw client history entries looked at (the last ones), before any filtering. */
+export const MAX_RAW_HISTORY_ITEMS = 12;
 const MAX_HISTORY_CHARS = 1500;
 
 export interface AskMessage {
   role: 'user' | 'assistant';
   content: string;
+}
+
+/** A history entry as sent by the client; assistant turns carry the server's signature. */
+export interface AskHistoryItem extends AskMessage {
+  sig?: string;
 }
 
 export interface AskPerson {
@@ -48,22 +55,56 @@ export function questionKey(question: string): string {
     .trim();
 }
 
-/** Keeps the last few turns, starting with a user message, each trimmed. */
-export function sanitizeHistory(input: unknown): AskMessage[] {
+/**
+ * The well-formed entries among the last MAX_RAW_HISTORY_ITEMS raw ones: role user/assistant,
+ * non-empty content (trimmed, not shortened — signatures cover the full answer), `sig` kept
+ * on assistant turns. Idempotent: parseHistory(parseHistory(x)) equals parseHistory(x).
+ */
+export function parseHistory(input: unknown): AskHistoryItem[] {
   if (!Array.isArray(input)) return [];
-  const messages = input
-    .filter(
-      (m): m is AskMessage =>
-        !!m &&
-        typeof m === 'object' &&
-        ((m as AskMessage).role === 'user' || (m as AskMessage).role === 'assistant') &&
-        typeof (m as AskMessage).content === 'string' &&
-        (m as AskMessage).content.trim().length > 0,
-    )
-    .map((m) => ({ role: m.role, content: m.content.trim().slice(0, MAX_HISTORY_CHARS) }))
-    .slice(-MAX_HISTORY_MESSAGES);
-  const firstUser = messages.findIndex((m) => m.role === 'user');
-  return firstUser < 0 ? [] : messages.slice(firstUser);
+  return input.slice(-MAX_RAW_HISTORY_ITEMS).flatMap((m): AskHistoryItem[] => {
+    if (!m || typeof m !== 'object') return [];
+    const { role, content, sig } = m as Record<string, unknown>;
+    if ((role !== 'user' && role !== 'assistant') || typeof content !== 'string') return [];
+    const text = content.trim();
+    if (!text) return [];
+    return role === 'assistant' && typeof sig === 'string'
+      ? [{ role, content: text, sig }]
+      : [{ role, content: text }];
+  });
+}
+
+/**
+ * Turns client-supplied history into the last few user → assistant pairs (each message
+ * shortened to MAX_HISTORY_CHARS, at most MAX_HISTORY_MESSAGES in total):
+ * - only parseHistory(input) is looked at;
+ * - an assistant turn is kept only if `isGenuine(item, index)` (index into parseHistory(input))
+ *   is true — otherwise it is dropped together with the question before it;
+ * - assistant turns without a question before them, all but the last of repeated user turns
+ *   and a trailing unanswered question are dropped, so roles strictly alternate.
+ * The default trusts every assistant turn; ask-person passes a signature check.
+ */
+export function sanitizeHistory(
+  input: unknown,
+  isGenuine: (item: AskHistoryItem, index: number) => boolean = () => true,
+): AskMessage[] {
+  const out: AskMessage[] = [];
+  parseHistory(input).forEach((item, index) => {
+    const last = out[out.length - 1];
+    if (item.role === 'user') {
+      if (last?.role === 'user') out.pop();
+      out.push({ role: 'user', content: item.content.slice(0, MAX_HISTORY_CHARS) });
+    } else if (last?.role === 'user') {
+      if (isGenuine(item, index)) {
+        out.push({ role: 'assistant', content: item.content.slice(0, MAX_HISTORY_CHARS) });
+      } else {
+        out.pop();
+      }
+    }
+  });
+  if (out[out.length - 1]?.role === 'user') out.pop();
+  const kept = out.slice(-MAX_HISTORY_MESSAGES);
+  return kept[0]?.role === 'assistant' ? kept.slice(1) : kept;
 }
 
 /** The grounding material appended to the system prompt. */

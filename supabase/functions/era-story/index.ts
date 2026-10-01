@@ -5,10 +5,12 @@
 // and the person's stored bio. Cached in era_stories so each person is only
 // generated once.
 
-import { adminClient, numberEnv, withinRateLimit } from '../_shared/clients.ts';
+import { adminClient, checkRateLimits, numberEnv } from '../_shared/clients.ts';
 import { generateJson, LlmRateLimitError, modelName } from '../_shared/llm.ts';
 import { buildEraSnapshot, eraSnapshotToPromptContext } from '../_shared/era.ts';
-import { clientIp, corsHeaders, json } from '../_shared/http.ts';
+import { clientIp, json, readJsonBody, serve } from '../_shared/http.ts';
+
+const MAX_BODY_BYTES = 32_768;
 
 const SYSTEM = `Du er formidler på et dansk kulturhistorisk museum og skriver "Tidsvinduer":
 korte, levende tekster der lader en besøgende på en kirkegård opleve den tid, en afdød person levede i.
@@ -48,17 +50,16 @@ interface StoryContent {
   imagine: string;
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
-
-  const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
-  const personId = Number(body?.personId);
+serve(async (req) => {
+  const body = await readJsonBody(req, MAX_BODY_BYTES);
+  if (body instanceof Response) return body;
+  const personId = Number(body.personId);
   if (!Number.isSafeInteger(personId) || personId <= 0)
     return json({ error: 'invalid_person' }, 400);
 
   const sb = adminClient();
 
+  // Cache hits and unknown/unsuitable persons cost no rate-limit budget.
   const cached = await sb
     .from('era_stories')
     .select('content, model')
@@ -67,21 +68,6 @@ Deno.serve(async (req) => {
   if (cached.data)
     return json({ ...(cached.data.content as StoryContent), model: cached.data.model });
 
-  const ip = clientIp(req);
-  const perIp = await withinRateLimit(
-    sb,
-    `story:${ip}`,
-    numberEnv('STORY_LIMIT_PER_HOUR', 20),
-    3600,
-  );
-  const global = await withinRateLimit(
-    sb,
-    'story:global',
-    numberEnv('STORY_LIMIT_PER_DAY', 1000),
-    86400,
-  );
-  if (!perIp || !global) return json({ error: 'rate_limited' }, 429);
-
   const { data: person, error } = await sb
     .from('persons')
     .select(
@@ -89,8 +75,18 @@ Deno.serve(async (req) => {
     )
     .eq('id', personId)
     .maybeSingle();
-  if (error || !person) return json({ error: 'not_found' }, 404);
+  if (error) throw new Error(`person lookup failed: ${error.message}`);
+  if (!person) return json({ error: 'not_found' }, 404);
   if (!person.birth_year && !person.death_year) return json({ error: 'missing_years' }, 422);
+
+  const allowed = await checkRateLimits(
+    sb,
+    'story',
+    clientIp(req),
+    numberEnv('STORY_LIMIT_PER_HOUR', 20),
+    numberEnv('STORY_LIMIT_PER_DAY', 1000),
+  );
+  if (!allowed) return json({ error: 'rate_limited' }, 429);
 
   const birthYear = person.birth_year ?? person.death_year - 60;
   const deathYear = person.death_year ?? person.birth_year + 60;
@@ -136,7 +132,7 @@ Skriv et Tidsvindue om ${person.name}s tid.`;
     };
   } catch (err) {
     if (err instanceof LlmRateLimitError) return json({ error: 'rate_limited' }, 429);
-    console.error('story generation failed', err);
+    console.error('story generation failed', err instanceof Error ? err.message : String(err));
     return json({ error: 'generation_failed' }, 502);
   }
 
@@ -144,7 +140,7 @@ Skriv et Tidsvindue om ${person.name}s tid.`;
   const { error: cacheError } = await sb
     .from('era_stories')
     .upsert({ person_id: personId, content: story, model });
-  if (cacheError) console.error('caching era story failed', cacheError);
+  if (cacheError) console.error('caching era story failed', cacheError.message);
 
   return json({ ...story, model });
 });

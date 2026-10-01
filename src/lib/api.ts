@@ -381,6 +381,8 @@ export async function getEraStory(personId: number): Promise<EraStory | null> {
 export interface AskTurn {
   role: 'user' | 'assistant';
   content: string;
+  /** Server signature on assistant turns; turns without a valid one are ignored as context. */
+  sig?: string;
 }
 
 export class AskError extends Error {
@@ -396,14 +398,15 @@ export async function askAboutPerson(
   personId: number,
   question: string,
   history: AskTurn[],
-): Promise<string> {
+): Promise<{ answer: string; sig?: string }> {
   const sb = getSupabase();
   if (!sb) {
     throw new AskError('AI-guiden er ikke koblet på endnu. Prøv igen senere.', 'offline');
   }
-  const { data, error } = await sb.functions.invoke<{ answer?: string }>('ask-person', {
-    body: { personId, question, history: history.slice(-6) },
-  });
+  const { data, error } = await sb.functions.invoke<{ answer?: string; sig?: string }>(
+    'ask-person',
+    { body: { personId, question, history: history.slice(-6) } },
+  );
   if (error) {
     const status = (error as { context?: { status?: number } }).context?.status;
     if (status === 429) {
@@ -417,7 +420,7 @@ export async function askAboutPerson(
   if (!data?.answer) {
     throw new AskError('Det lykkedes ikke at få et svar. Prøv igen.', 'failed');
   }
-  return data.answer;
+  return { answer: data.answer, sig: data.sig };
 }
 
 // ---------------------------------------------------------------------------

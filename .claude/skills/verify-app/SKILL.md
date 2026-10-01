@@ -20,10 +20,13 @@ Cloud sessions have Postgres 16 installed but stopped:
 service postgresql start
 su postgres -c "psql -c 'create database mindsten_test'"
 cp supabase/tests/*.sql supabase/migrations/*.sql supabase/seed.sql /tmp/ && chmod a+r /tmp/*.sql
-for f in roles 0001_init 0002_full_app seed functions; do
-  su postgres -c "psql -v ON_ERROR_STOP=1 -q -d mindsten_test -f /tmp/$f.sql"
-done
+run() { su postgres -c "psql -v ON_ERROR_STOP=1 -q -d mindsten_test -f /tmp/$1.sql"; }
+run roles
+for f in /tmp/0*.sql; do run "$(basename "$f" .sql)"; done   # every migration, in order
+run seed && run functions && run hardening
 ```
+
+CI uses Postgres 17 (matching `supabase/config.toml`); 16 locally is fine.
 
 Migrations must stay idempotent (CI applies them twice).
 

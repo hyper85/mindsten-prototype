@@ -31,9 +31,13 @@ In CI: Actions → "Import persons from Wikidata" (inputs `limit`, `dry_run`). N
 
 - **10-year rule**: persons who died less than 10 years ago are skipped (`--min-years-dead`,
   default 10). Danish databeskyttelseslov § 2, stk. 5 applies GDPR to the deceased for 10 years.
+  The check uses Wikidata's date precision (day/month exact; a year, decade or century counts
+  as its last possible day), and the database enforces it too: the `persons` trigger in
+  `0004_hardening.sql` rejects rows that break it.
   Do not lower this without the user's explicit decision.
 - **Curated rows win**: rows with `curated = true` (from `src/data/persons.ts` via seed) are only
-  linked (`wikidata_id`, image, Wikipedia URL if empty). Matching is by `wikidata_id`, else
+  linked (`wikidata_id`, image, Wikipedia URL if empty) — also enforced by the `persons` trigger.
+  Changing a person's name, bio or years clears their cached AI story and guide answers. Matching is by `wikidata_id`, else
   normalised name + birth year.
 - **Attribution**: Wikipedia text is CC BY-SA → every imported person gets a "Wikipedia (dansk)"
   source link; images keep `image_credit` = Commons file name. Wikidata is CC0.
