@@ -56,3 +56,64 @@ export function readChatCompletion(body: unknown): {
   const finishReason = String(choice.finish_reason ?? '');
   return { text: stripThinking(text), refused: finishReason === 'content_filter', finishReason };
 }
+
+/**
+ * Collects a streamed /v1/chat/completions response (server-sent events). Text can arrive
+ * split anywhere, so incomplete lines are kept until the rest comes in. Counts reasoning
+ * text separately (`delta.reasoning_content`) so logs can show whether a model was still
+ * thinking when it ran out of time.
+ */
+export class ChatStreamAccumulator {
+  content = '';
+  reasoningChars = 0;
+  finishReason = '';
+  done = false;
+  private buffer = '';
+
+  push(chunk: string): void {
+    this.buffer += chunk;
+    const lines = this.buffer.split(/\r?\n/);
+    this.buffer = lines.pop() ?? '';
+    for (const line of lines) this.line(line);
+  }
+
+  /** Call when the stream ends, to process a last line without a newline. */
+  end(): void {
+    if (this.buffer) this.line(this.buffer);
+    this.buffer = '';
+  }
+
+  private line(line: string): void {
+    if (!line.startsWith('data:')) return;
+    const data = line.slice(5).trim();
+    if (!data) return;
+    if (data === '[DONE]') {
+      this.done = true;
+      return;
+    }
+    let event: { choices?: Array<Record<string, unknown>> };
+    try {
+      event = JSON.parse(data);
+    } catch {
+      return; // keep-alive or malformed event
+    }
+    const choice = event.choices?.[0];
+    if (!choice) return;
+    const delta = (choice.delta ?? {}) as { content?: unknown; reasoning_content?: unknown };
+    if (typeof delta.content === 'string') this.content += delta.content;
+    if (typeof delta.reasoning_content === 'string') {
+      this.reasoningChars += delta.reasoning_content.length;
+    }
+    if (typeof choice.finish_reason === 'string' && choice.finish_reason) {
+      this.finishReason = choice.finish_reason;
+    }
+  }
+
+  result(): { text: string; refused: boolean; finishReason: string } {
+    return {
+      text: stripThinking(this.content),
+      refused: this.finishReason === 'content_filter',
+      finishReason: this.finishReason,
+    };
+  }
+}

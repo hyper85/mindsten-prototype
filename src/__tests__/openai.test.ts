@@ -42,3 +42,18 @@ describe('OpenAI-compatible chat helpers (OpenCode non-Claude models)', () => {
     expect(() => readChatCompletion({ error: 'nope' })).toThrow();
   });
 });
+
+describe('ChatStreamAccumulator', () => {
+  it('assembles streamed text split across chunks and counts reasoning', async () => {
+    const { ChatStreamAccumulator } = await import('../../supabase/functions/_shared/openai.ts');
+    const acc = new ChatStreamAccumulator();
+    acc.push('data: {"choices":[{"delta":{"reasoning_content":"hmm"}}]}\n\ndata: {"choi');
+    acc.push('ces":[{"delta":{"content":"Hej "}}]}\n\n: keep-alive\n');
+    acc.push('data: {"choices":[{"delta":{"content":"verden"},"finish_reason":"stop"}]}\n');
+    acc.push('data: [DONE]\n');
+    acc.end();
+    expect(acc.done).toBe(true);
+    expect(acc.reasoningChars).toBe(3);
+    expect(acc.result()).toEqual({ text: 'Hej verden', refused: false, finishReason: 'stop' });
+  });
+});
