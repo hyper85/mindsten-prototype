@@ -111,7 +111,8 @@ Skriv et Tidsvindue om ${person.name}s tid.`;
       system: SYSTEM,
       schema: STORY_SCHEMA,
       effort: 'medium',
-      maxTokens: 16000,
+      // A story is ~400 words; the rest is room for a model's reasoning.
+      maxTokens: 8000,
       content: userPrompt,
     });
     if (!result) return json({ error: 'refused' }, 422);

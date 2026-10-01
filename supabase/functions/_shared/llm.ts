@@ -9,7 +9,8 @@
 //
 // Optional secrets: LLM_MODEL (model id for the chosen provider), LLM_VISION_MODEL (model
 // for reading gravestone photos, if LLM_MODEL can't see images), LLM_BASE_URL (override
-// the OpenCode gateway URL).
+// the OpenCode gateway URL), LLM_EXTRA_BODY (JSON merged into /v1/chat/completions
+// requests, e.g. {"thinking":{"type":"disabled"}} to switch off a model's reasoning).
 
 import Anthropic from 'npm:@anthropic-ai/sdk@0.129.0';
 import { extractJsonObject } from './json.ts';
@@ -91,24 +92,45 @@ function usesChatCompletions(cfg: LlmConfig, model: string): boolean {
   return cfg.provider === 'opencode' && !model.toLowerCase().startsWith('claude-');
 }
 
+function extraBody(): Record<string, unknown> {
+  const raw = Deno.env.get('LLM_EXTRA_BODY');
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    console.error('LLM_EXTRA_BODY is not valid JSON — ignored');
+    return {};
+  }
+}
+
 async function chatCompletion(
   cfg: LlmConfig,
   model: string,
   messages: ChatCompletionMessage[],
   maxTokens: number,
 ): Promise<{ text: string; refused: boolean }> {
+  // One overall budget: a slow model must fail well inside the Edge Function's wall clock
+  // (and the app's wait), so a timed-out request is never retried.
+  const deadline = Date.now() + TIMEOUT_MS;
+  const body = JSON.stringify({ ...extraBody(), model, max_tokens: maxTokens, messages });
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
+    const remaining = deadline - Date.now();
+    if (remaining < 5_000) break;
     let res: Response;
     try {
       res = await fetch(`${cfg.baseURL}/v1/chat/completions`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${cfg.apiKey}` },
-        body: JSON.stringify({ model, max_tokens: maxTokens, messages }),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
+        body,
+        signal: AbortSignal.timeout(remaining),
       });
     } catch (err) {
-      lastError = err; // network error or timeout: retry once
+      if (err instanceof DOMException && err.name === 'TimeoutError') {
+        throw new Error(`model did not answer within ${TIMEOUT_MS / 1000} s (${model})`);
+      }
+      lastError = err; // network error: retry once
       continue;
     }
     if (res.status === 429) throw new LlmRateLimitError(await res.text());
