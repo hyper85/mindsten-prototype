@@ -15,6 +15,9 @@ const OPENCODE_BASE_URL = 'https://opencode.ai/zen';
 const DEFAULT_ANTHROPIC_MODEL = 'claude-opus-5-5';
 // Must be a Claude model in the OpenCode Zen catalogue (served on /v1/messages).
 const DEFAULT_OPENCODE_MODEL = 'claude-sonnet-4-5';
+// Edge Functions have a limited wall-clock budget: fail a hung request instead of
+// waiting for the SDK's 10-minute default, and retry at most once.
+const CLIENT_OPTIONS = { timeout: 50_000, maxRetries: 1 } as const;
 
 export type Provider = 'anthropic' | 'opencode';
 
@@ -34,7 +37,7 @@ function config(): LlmConfig {
     return {
       provider: 'anthropic',
       model: model ?? DEFAULT_ANTHROPIC_MODEL,
-      client: new Anthropic({ apiKey: anthropicKey, maxRetries: 1 }),
+      client: new Anthropic({ apiKey: anthropicKey, ...CLIENT_OPTIONS }),
     };
   }
   if (opencodeKey) {
@@ -45,7 +48,7 @@ function config(): LlmConfig {
         apiKey: opencodeKey,
         baseURL: Deno.env.get('LLM_BASE_URL') ?? OPENCODE_BASE_URL,
         defaultHeaders: { Authorization: `Bearer ${opencodeKey}` },
-        maxRetries: 1,
+        ...CLIENT_OPTIONS,
       }),
     };
   }
@@ -106,6 +109,61 @@ export async function generateJson<T>(req: JsonRequest): Promise<T | null> {
       .map((b) => b.text)
       .join('');
     return extractJsonObject(text) as T;
+  } catch (err) {
+    if (err instanceof Anthropic.RateLimitError) throw new LlmRateLimitError(String(err));
+    throw err;
+  }
+}
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+interface TextRequest {
+  system: string;
+  messages: ChatMessage[];
+  effort: 'low' | 'medium' | 'high';
+  maxTokens: number;
+}
+
+/**
+ * Plain-text chat completion. Returns null when the model declines (refusal);
+ * throws LlmRateLimitError on 429 and the SDK error on other failures.
+ */
+export async function generateText(req: TextRequest): Promise<string | null> {
+  const { provider, model, client } = config();
+  try {
+    if (provider === 'anthropic') {
+      const response = await client.beta.messages.create({
+        model,
+        max_tokens: req.maxTokens,
+        betas: ['server-side-fallback-2026-07-01'],
+        fallbacks: 'default',
+        system: req.system,
+        output_config: { effort: req.effort },
+        messages: req.messages,
+      });
+      if (response.stop_reason === 'refusal') return null;
+      return response.content
+        .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text')
+        .map((b) => b.text)
+        .join('')
+        .trim();
+    }
+
+    const response = await client.messages.create({
+      model,
+      max_tokens: req.maxTokens,
+      system: req.system,
+      messages: req.messages,
+    });
+    if (response.stop_reason === 'refusal') return null;
+    return response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map((b) => b.text)
+      .join('')
+      .trim();
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError) throw new LlmRateLimitError(String(err));
     throw err;

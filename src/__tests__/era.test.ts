@@ -85,3 +85,13 @@ describe('extractJsonObject (OpenCode replies)', async () => {
     expect(() => extractJsonObject('ingen json')).toThrow();
   });
 });
+
+describe('initials', async () => {
+  const { initials } = await import('../lib/format');
+  it('builds monograms', () => {
+    expect(initials('H.C. Andersen')).toBe('HA');
+    expect(initials('Christian 4.')).toBe('C');
+    expect(initials('Søren Kierkegaard')).toBe('SK');
+    expect(initials('Ørsted')).toBe('Ø');
+  });
+});

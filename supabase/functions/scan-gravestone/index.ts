@@ -5,11 +5,14 @@
 // (match_gravestone) ranks persons by name similarity, years and distance.
 // The photo is never stored.
 
-import { adminClient, numberEnv, withinRateLimit } from '../_shared/clients.ts';
+import { adminClient, checkRateLimits, numberEnv } from '../_shared/clients.ts';
 import { generateJson, LlmRateLimitError } from '../_shared/llm.ts';
-import { clientIp, corsHeaders, json } from '../_shared/http.ts';
+import { clientIp, json, readJsonBody, serve } from '../_shared/http.ts';
 
-const MAX_BASE64_CHARS = 7_000_000; // ≈ 5 MB image
+// The client sends a ≤1280 px JPEG (typically 100–500 KB); anything much larger is refused
+// before it reaches the model (Claude's limit is 5 MB per image).
+const MAX_BODY_BYTES = 2_000_000;
+const MAX_BASE64_CHARS = 1_950_000; // ≈ 1.4 MB decoded
 
 const SYSTEM = `Du aflæser fotos af gravsten og mindesten, primært fra danske kirkegårde.
 Returnér kun det, der faktisk står på stenen. Gæt ikke navne, og opfind ikke årstal.
@@ -45,85 +48,96 @@ const READING_SCHEMA = {
   },
 } as const;
 
-interface RawReading {
-  is_gravestone: boolean;
-  people: Array<{ name: string; birth_year: number | null; death_year: number | null }>;
-  inscription: string;
-}
-
 interface MatchRow {
   person_id: number;
   score: number;
   distance_m: number | null;
 }
 
+/** Integer year in 800–2100 (numbers or numeric strings from the model), else null. */
 function validYear(y: unknown): number | null {
-  return typeof y === 'number' && Number.isInteger(y) && y >= 800 && y <= 2100 ? y : null;
+  const n = typeof y === 'string' && /^\s*\d{3,4}\s*$/.test(y) ? Number(y) : y;
+  return typeof n === 'number' && Number.isInteger(n) && n >= 800 && n <= 2100 ? n : null;
 }
 
 function validCoord(v: unknown, max: number): number | null {
   return typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= max ? v : null;
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
+const MEDIA_TYPES: Array<
+  [prefix: string, type: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif']
+> = [
+  ['/9j/', 'image/jpeg'],
+  ['iVBORw0KGgo', 'image/png'],
+  ['UklGR', 'image/webp'],
+  ['R0lGOD', 'image/gif'],
+];
 
-  const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
+serve(async (req) => {
+  const body = await readJsonBody(req, MAX_BODY_BYTES);
+  if (body instanceof Response) return body;
   const image =
-    typeof body?.image === 'string' ? body.image.replace(/^data:image\/\w+;base64,/, '') : '';
-  if (
-    !image ||
-    image.length > MAX_BASE64_CHARS ||
-    !/^[A-Za-z0-9+/=\s]+$/.test(image.slice(0, 200))
-  ) {
+    typeof body.image === 'string'
+      ? body.image.replace(/^data:image\/[\w.+-]+;base64,/, '').replace(/\s+/g, '')
+      : '';
+  if (image.length > MAX_BASE64_CHARS) return json({ error: 'image_too_large' }, 413);
+  const mediaType = MEDIA_TYPES.find(([prefix]) => image.startsWith(prefix))?.[1];
+  if (!image || !mediaType || !/^[A-Za-z0-9+/]+={0,2}$/.test(image)) {
     return json({ error: 'invalid_image' }, 400);
   }
-  const lat = validCoord(body?.lat, 90);
-  const lng = validCoord(body?.lng, 180);
+  const lat = validCoord(body.lat, 90);
+  const lng = validCoord(body.lng, 180);
 
   const sb = adminClient();
-  const ip = clientIp(req);
-  const perIp = await withinRateLimit(sb, `scan:${ip}`, numberEnv('SCAN_LIMIT_PER_HOUR', 40), 3600);
-  const global = await withinRateLimit(
+  const allowed = await checkRateLimits(
     sb,
-    'scan:global',
+    'scan',
+    clientIp(req),
+    numberEnv('SCAN_LIMIT_PER_HOUR', 40),
     numberEnv('SCAN_LIMIT_PER_DAY', 3000),
-    86400,
   );
-  if (!perIp || !global) return json({ error: 'rate_limited' }, 429);
+  if (!allowed) return json({ error: 'rate_limited' }, 429);
 
-  let reading: RawReading;
+  let reading: Record<string, unknown>;
   try {
-    const result = await generateJson<RawReading>({
+    const result = await generateJson<unknown>({
       system: SYSTEM,
       schema: READING_SCHEMA,
       effort: 'low',
       maxTokens: 4000,
       content: [
-        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: image } },
+        { type: 'image', source: { type: 'base64', media_type: mediaType, data: image } },
         { type: 'text', text: 'Aflæs denne gravsten.' },
       ],
     });
     if (!result) return json({ reading: null, candidates: [] });
-    reading = result;
+    if (typeof result !== 'object' || Array.isArray(result)) {
+      throw new Error('reading does not match schema');
+    }
+    reading = result as Record<string, unknown>;
   } catch (err) {
     if (err instanceof LlmRateLimitError) return json({ error: 'rate_limited' }, 429);
-    console.error('vision call failed', err);
+    console.error('vision call failed', err instanceof Error ? err.message : String(err));
     return json({ error: 'vision_failed' }, 502);
   }
 
-  const people = (reading.people ?? [])
-    .filter((p) => typeof p.name === 'string' && p.name.trim().length >= 2)
-    .slice(0, 4)
+  const rawPeople: unknown[] = Array.isArray(reading.people) ? reading.people : [];
+  const people = rawPeople
+    .filter(
+      (p): p is Record<string, unknown> =>
+        !!p && typeof p === 'object' && typeof (p as { name?: unknown }).name === 'string',
+    )
     .map((p) => ({
-      name: p.name.trim(),
+      name: (p.name as string).trim().slice(0, 200),
       birthYear: validYear(p.birth_year),
       deathYear: validYear(p.death_year),
-    }));
+    }))
+    .filter((p) => p.name.length >= 2)
+    .slice(0, 4);
+  const isGravestone = reading.is_gravestone === true;
 
   const best = new Map<number, MatchRow>();
-  if (reading.is_gravestone) {
+  if (isGravestone) {
     for (const p of people) {
       const { data, error } = await sb.rpc('match_gravestone', {
         p_names: [p.name],
@@ -134,7 +148,7 @@ Deno.serve(async (req) => {
         p_limit: 5,
       });
       if (error) {
-        console.error('match_gravestone failed', error);
+        console.error('match_gravestone failed', error.message);
         continue;
       }
       for (const row of (data ?? []) as MatchRow[]) {
@@ -151,9 +165,10 @@ Deno.serve(async (req) => {
 
   return json({
     reading: {
-      isGravestone: Boolean(reading.is_gravestone),
+      isGravestone,
       people,
-      inscription: String(reading.inscription ?? '').slice(0, 1000),
+      inscription:
+        typeof reading.inscription === 'string' ? reading.inscription.slice(0, 1000) : '',
     },
     candidates,
   });

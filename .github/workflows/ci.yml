@@ -4,6 +4,11 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Also run as the first job of the Supabase deploy, so a broken migration can't deploy.
+  workflow_call:
+
+permissions:
+  contents: read
 
 jobs:
   web:
@@ -33,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: postgres:17 # match [db] major_version in supabase/config.toml
         env:
           POSTGRES_PASSWORD: postgres
         ports: ['5432:5432']
@@ -53,4 +58,6 @@ jobs:
           psql -v ON_ERROR_STOP=1 -q -f supabase/seed.sql
           psql -v ON_ERROR_STOP=1 -q -f supabase/seed.sql
       - name: SQL function checks
-        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/functions.sql
+        run: |
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/functions.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/hardening.sql

@@ -29,10 +29,14 @@ beforeEach(() => {
 });
 
 describe('pages smoke tests', () => {
-  it('HomePage falls back to featured graves without location', async () => {
+  it('HomePage explains the app and lists famous graves without location', async () => {
     renderAtRoute('/home', <HomePage />, '/home');
+    expect(screen.getByRole('heading', { name: 'Hvem ligger her?' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Scan en gravsten/ })).toBeInTheDocument();
     expect(await screen.findByText('H.C. Andersen')).toBeInTheDocument();
     expect(screen.getByText('Kendte grave')).toBeInTheDocument();
+    // jsdom has no geolocation, so the prompt explains how to turn it on.
+    expect(screen.getByText('Hvem ligger begravet omkring dig?')).toBeInTheDocument();
     expect(screen.getByText(/Placering er slået fra/)).toBeInTheDocument();
     expect(await screen.findByText('Temaruter')).toBeInTheDocument();
   });
@@ -42,23 +46,26 @@ describe('pages smoke tests', () => {
     expect(screen.getByText(/Placer gravstenen/i)).toBeInTheDocument();
     expect(screen.getByText(/Kameraet er ikke tilgængeligt/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Scan gravsten' })).toBeInTheDocument();
-    expect(screen.getByText(/Demo-tilstand/)).toBeInTheDocument();
+    expect(screen.getByText(/Demo/)).toBeInTheDocument();
   });
 
   it('ScannerPage demo scan returns candidates', async () => {
     renderAtRoute('/scanner', <ScannerPage />, '/scanner');
     screen.getByRole('button', { name: 'Scan gravsten' }).click();
     expect(await screen.findByText(/Mulige personer/, {}, { timeout: 4000 })).toBeInTheDocument();
-    expect(screen.getAllByText(/% match/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/%$/).length).toBeGreaterThan(0);
   });
 
-  it('PersonPage renders person, era highlights and grave', async () => {
+  it('PersonPage renders the stone, facts, era teaser and actions', async () => {
     renderAtRoute('/person/1', <PersonPage />, '/person/:id');
     expect(await screen.findByRole('heading', { name: 'H.C. Andersen' })).toBeInTheDocument();
-    expect(screen.getByText('Tidslinje')).toBeInTheDocument();
-    expect(screen.getByText('70 år')).toBeInTheDocument();
-    expect(screen.getByText(/Statsbankerotten/)).toBeInTheDocument();
+    expect(screen.getByText(/· 70 år/)).toBeInTheDocument();
+    expect(screen.getByText('Statsbankerotten')).toBeInTheDocument();
+    expect(screen.getByText('Livet i årstal')).toBeInTheDocument();
     expect(screen.getByText('Vis vej')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Gem/ })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('heading', { name: 'Spørg om H.C. Andersen' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Stil dit eget spørgsmål' })).toBeInTheDocument();
   });
 
   it('PersonPage shows not-found for unknown id', async () => {
@@ -68,16 +75,24 @@ describe('pages smoke tests', () => {
 
   it('TimeWindowPage shows monarchs and events with ages', async () => {
     renderAtRoute('/person/1/time-window', <TimeWindowPage />, '/person/:id/time-window');
-    expect(await screen.findByText('Danmark i Guldalderen')).toBeInTheDocument();
-    expect(screen.getByText(/Frederik 6\./)).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Danmark i Guldalderen' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Frederik 6.')).toBeInTheDocument();
+    expect(screen.getByText('Besteg tronen, da H.C. Andersen var 3 år')).toBeInTheDocument();
     expect(screen.getByText('Grundloven underskrives')).toBeInTheDocument();
     expect(screen.getByText('44 år')).toBeInTheDocument();
   });
 
   it('MapPage renders filters and graves in view', async () => {
     renderAtRoute('/map', <MapPage />, '/map');
-    expect(screen.getByRole('button', { name: 'Alle' })).toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: 'H.C. Andersen' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Alle' })).toHaveAttribute('aria-pressed', 'true');
+    expect(await screen.findByText('H.C. Andersen')).toBeInTheDocument();
+  });
+
+  it('SearchPage shows categories and finds persons without diacritics', async () => {
+    renderAtRoute('/search', <SearchPage />, '/search');
+    expect(screen.getByRole('button', { name: /Forfattere/ })).toBeInTheDocument();
   });
 
   it('SearchPage finds persons without diacritics', async () => {
@@ -91,17 +106,18 @@ describe('pages smoke tests', () => {
     expect(screen.getByRole('button', { name: 'Send forslag' })).toBeInTheDocument();
   });
 
-  it('ProfilePage renders local stats', () => {
+  it('ProfilePage renders local stats and privacy actions', () => {
     renderAtRoute('/profile', <ProfilePage />, '/profile');
-    expect(screen.getByText('Historisk Nysgerrig')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Profil' })).toBeInTheDocument();
     expect(screen.getByText('Scannet')).toBeInTheDocument();
     expect(screen.getByText('Eksportér mine data')).toBeInTheDocument();
   });
 
-  it('OnboardingOverlay renders first step', () => {
+  it('OnboardingOverlay explains the app', () => {
     render(<OnboardingOverlay onDone={() => {}} />);
-    expect(screen.getByText('Scan')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Næste/i })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /Velkommen til/ })).toBeInTheDocument();
+    expect(screen.getByText('Scan en gravsten')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Kom i gang' })).toBeInTheDocument();
   });
 });
 

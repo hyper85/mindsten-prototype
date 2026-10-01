@@ -7,8 +7,10 @@
 // Flags:
 //   --dry-run            fetch + transform, print a sample, write nothing
 //   --limit N            stop after N persons (for testing)
-//   --min-years-dead N   skip people who died less than N years ago (default 10,
-//                        cf. databeskyttelsesloven § 2, stk. 5)
+//   --min-years-dead N   skip people who died less than N years ago (default and minimum
+//                        10, cf. databeskyttelsesloven § 2, stk. 5 — the database rejects
+//                        anything newer). Uses the precision of the Wikidata date: a death
+//                        known only to the year/decade/century counts from its last day.
 //   --from-year Y        only people who died in or after year Y (default 800)
 //
 // Curated rows (persons.curated = true) are never overwritten — the import only
@@ -37,31 +39,73 @@ const opt = (name: string, fallback: number) => {
 };
 const DRY_RUN = flag('dry-run');
 const LIMIT = opt('limit', Infinity);
-const MIN_YEARS_DEAD = opt('min-years-dead', 10);
+const MIN_YEARS_DEAD = Math.max(10, opt('min-years-dead', 10));
 const FROM_YEAR = opt('from-year', 800);
-const CURRENT_YEAR = new Date().getFullYear();
-const MAX_DEATH_YEAR = CURRENT_YEAR - MIN_YEARS_DEAD;
+// Dates are compared in UTC, like the database's current_date on Supabase.
+const TODAY = new Date();
+const CUTOFF = isoDate(
+  TODAY.getUTCFullYear() - MIN_YEARS_DEAD,
+  TODAY.getUTCMonth() + 1,
+  TODAY.getUTCDate(),
+);
+const MAX_DEATH_YEAR = TODAY.getUTCFullYear() - MIN_YEARS_DEAD;
+
+function isoDate(year: number, month: number, day: number): string {
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
 
 // ---------------------------------------------------------------------------
 // HTTP helpers
 // ---------------------------------------------------------------------------
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const MAX_ATTEMPTS = 5;
+
+/** Network failures and timeouts (fetch throws TypeError / AbortError / TimeoutError). */
+function isNetworkError(err: unknown): boolean {
+  return (
+    err instanceof TypeError ||
+    (err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError'))
+  );
+}
 
 async function getJson<T>(url: string, init: RequestInit = {}, attempt = 1): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: { 'User-Agent': USER_AGENT, Accept: 'application/json', ...(init.headers ?? {}) },
-  });
-  if (res.status === 429 || res.status >= 500) {
-    if (attempt >= 5) throw new Error(`${res.status} from ${url.slice(0, 120)}`);
-    const wait = Number(res.headers.get('retry-after')) * 1000 || 2000 * 2 ** attempt;
-    console.warn(`  ${res.status}, retrying in ${Math.round(wait / 1000)}s…`);
+  const retry = async (reason: string, wait: number) => {
+    if (attempt >= MAX_ATTEMPTS) throw new Error(`${reason} from ${url.slice(0, 120)}`);
+    console.warn(`  ${reason}, retrying in ${Math.round(wait / 1000)}s…`);
     await sleep(wait);
     return getJson<T>(url, init, attempt + 1);
+  };
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(60_000),
+      headers: { 'User-Agent': USER_AGENT, Accept: 'application/json', ...(init.headers ?? {}) },
+    });
+  } catch (err) {
+    if (!isNetworkError(err)) throw err;
+    return retry(
+      err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+      2000 * 2 ** attempt,
+    );
+  }
+  if (res.status === 429 || res.status >= 500) {
+    await res.body?.cancel().catch(() => undefined);
+    const wait = Number(res.headers.get('retry-after')) * 1000 || 2000 * 2 ** attempt;
+    return retry(String(res.status), wait);
   }
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} from ${url.slice(0, 120)}`);
-  return (await res.json()) as T;
+  try {
+    return (await res.json()) as T;
+  } catch (err) {
+    // The body stream can also time out or drop mid-transfer.
+    if (!isNetworkError(err)) throw err;
+    return retry(
+      err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+      2000 * 2 ** attempt,
+    );
+  }
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {
@@ -190,17 +234,49 @@ function claimIds(e: WdEntity, prop: string): string[] {
     .filter((v): v is string => Boolean(v));
 }
 
+interface WdTime {
+  /** ISO date, only when the precision is a day. */
+  iso: string | null;
+  year: number | null;
+  month: number;
+  day: number;
+  /** Wikidata precision: 11 day, 10 month, 9 year, 8 decade, 7 century, … */
+  precision: number;
+}
+
 /** Wikidata time → ISO date (only when precision is day) + year. */
-function parseTime(e: WdEntity, prop: string): { iso: string | null; year: number | null } {
+function parseTime(e: WdEntity, prop: string): WdTime {
   const v = claimValues(e, prop)[0] as { time?: string; precision?: number } | undefined;
   const m = v?.time ? /^([+-])(\d+)-(\d{2})-(\d{2})/.exec(v.time) : null;
-  if (!m) return { iso: null, year: null };
+  if (!m) return { iso: null, year: null, month: 0, day: 0, precision: 0 };
   const year = Number(m[2]) * (m[1] === '-' ? -1 : 1);
-  const iso =
-    (v?.precision ?? 0) >= 11 && year > 0
-      ? `${String(year).padStart(4, '0')}-${m[3]}-${m[4]}`
-      : null;
-  return { iso, year };
+  const month = Number(m[3]);
+  const day = Number(m[4]);
+  // A "day" value without month/day is really coarser.
+  const precision = Math.min(v?.precision ?? 0, day > 0 ? 11 : month > 0 ? 10 : 9);
+  const iso = precision >= 11 && year > 0 ? isoDate(year, month, day) : null;
+  return { iso, year, month, day, precision };
+}
+
+/**
+ * Databeskyttelsesloven § 2, stk. 5: true only when the person certainly died at least
+ * MIN_YEARS_DEAD years ago, i.e. the latest date the Wikidata value allows is ≤ CUTOFF.
+ * Day: the date; month: its last day; year/decade/century: the last day of the last year;
+ * anything coarser is skipped.
+ */
+function diedLongEnoughAgo(t: WdTime): boolean {
+  if (t.year === null) return false;
+  const offset: Record<number, number> = { 11: 0, 10: 0, 9: 0, 8: 9, 7: 99 };
+  if (!(t.precision in offset)) return false; // coarser than a century
+  const lastYear = t.year + offset[t.precision];
+  if (lastYear < 1) return true;
+  const latest =
+    t.precision === 11
+      ? isoDate(t.year, t.month, t.day)
+      : t.precision === 10
+        ? isoDate(t.year, t.month, new Date(Date.UTC(t.year, t.month, 0)).getUTCDate())
+        : isoDate(lastYear, 12, 31);
+  return latest <= CUTOFF;
 }
 
 function coordOf(e: WdEntity | undefined): { lat: number; lng: number } | null {
@@ -373,6 +449,7 @@ async function loadExisting(sb: SupabaseClient): Promise<ExistingPerson[]> {
     const { data, error } = await sb
       .from('persons')
       .select('id, name, birth_year, wikidata_id, curated, image_url, wikipedia_url')
+      .order('id')
       .range(from, from + 999);
     if (error) throw error;
     rows.push(...((data ?? []) as ExistingPerson[]));
@@ -470,7 +547,7 @@ async function main() {
     const placeCoord = coordOf(place);
     const birth = parseTime(e, 'P569');
     const death = parseTime(e, 'P570');
-    if (!death.year || death.year > MAX_DEATH_YEAR) continue;
+    if (!death.year || !diedLongEnoughAgo(death)) continue;
 
     const description = e.descriptions?.da?.value ?? e.descriptions?.en?.value ?? null;
     const title = e.sitelinks?.dawiki?.title ?? null;
@@ -540,7 +617,8 @@ async function main() {
       image_url: imageUrl,
       image_credit: imageCredit,
       wikipedia_url: wikipediaUrl,
-      curated: false,
+      // `curated` is left out on purpose: new rows get the default (false) and existing
+      // rows keep theirs — the import never un-curates a row.
     });
 
     const timeline: Array<[number, string]> = [];
@@ -574,8 +652,10 @@ async function main() {
       .select('id, wikidata_id');
     if (error) throw error;
     const ids = (data ?? []).map((r) => r.id as number);
-    await sb.from('timeline_events').delete().in('person_id', ids);
-    await sb.from('person_sources').delete().in('person_id', ids);
+    const { error: dtErr } = await sb.from('timeline_events').delete().in('person_id', ids);
+    if (dtErr) throw dtErr;
+    const { error: dsErr } = await sb.from('person_sources').delete().in('person_id', ids);
+    if (dsErr) throw dsErr;
     const timelineRows: Array<Record<string, unknown>> = [];
     const sourceRows: Array<Record<string, unknown>> = [];
     for (const r of data ?? []) {

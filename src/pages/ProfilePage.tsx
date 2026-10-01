@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Icons } from '../components/Icons';
-import { PersonListItem } from '../components/PersonListItem';
+import { Download, Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { LargeTitle, Page, Section } from '../components/Layout';
+import { List, Row } from '../components/List';
+import { PersonRow } from '../components/PersonRow';
 import { getPersonsByIds } from '../lib/api';
+import { resetOnboarding } from '../lib/onboarding';
 import {
   clearLocalData,
   exportLocalData,
@@ -11,7 +13,9 @@ import {
   getTimeWindowCount,
   getVisited,
 } from '../lib/storage';
+import { showToast } from '../lib/toast';
 import type { Person } from '../types';
+import { useDocumentTitle } from '../lib/title';
 
 const readStats = () => ({
   scans: getScanCount(),
@@ -30,12 +34,20 @@ function useLocalStats() {
   return stats;
 }
 
+function SettingsIcon({ color, children }: { color: string; children: ReactNode }) {
+  return (
+    <span className="icon-square" style={{ background: color }} aria-hidden="true">
+      {children}
+    </span>
+  );
+}
+
 export function ProfilePage() {
-  const navigate = useNavigate();
   const stats = useLocalStats();
   const [favorites, setFavorites] = useState<Person[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  useDocumentTitle('Profil');
   useEffect(() => {
     let cancelled = false;
     getPersonsByIds(stats.favorites.slice(0, 20)).then((p) => !cancelled && setFavorites(p));
@@ -51,110 +63,139 @@ export function ProfilePage() {
     a.href = url;
     a.download = 'mindsten-data.json';
     a.click();
-    URL.revokeObjectURL(url);
+    // Revoking right away can cancel the download in iOS Safari.
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    showToast('Dine data er hentet');
   };
 
   return (
-    <div className="my-profile-screen">
-      <div className="my-profile-header">
-        <div className="my-avatar">🪦</div>
-        <div className="my-name">Historisk Nysgerrig</div>
-        <div className="my-since">Dine data bliver på denne telefon</div>
-      </div>
+    <Page>
+      <LargeTitle title="Profil" subtitle="Din historik ligger kun på denne telefon." />
 
-      <div className="stat-grid">
-        <div className="stat-item">
-          <div className="stat-num">{stats.scans}</div>
+      <div className="stats">
+        <div className="stat">
+          <div className="stat-value">{stats.scans}</div>
           <div className="stat-label">Scannet</div>
         </div>
-        <div className="stat-item">
-          <div className="stat-num">{stats.visited.length}</div>
+        <div className="stat">
+          <div className="stat-value">{stats.visited.length}</div>
           <div className="stat-label">Personer</div>
         </div>
-        <div className="stat-item">
-          <div className="stat-num">{stats.timeWindows}</div>
+        <div className="stat">
+          <div className="stat-value">{stats.timeWindows}</div>
           <div className="stat-label">Tidsvinduer</div>
         </div>
       </div>
 
-      {favorites.length > 0 && (
-        <>
-          <div className="section-label" style={{ marginTop: 20 }}>
-            Favoritter
+      <Section title="Favoritter">
+        {favorites.length > 0 ? (
+          <List inset={72}>
+            {favorites.map((p) => (
+              <PersonRow key={p.id} person={p} />
+            ))}
+          </List>
+        ) : (
+          <div className="card muted" style={{ fontSize: 15 }}>
+            Tryk på hjertet hos en person for at gemme dem her.
           </div>
-          {favorites.map((p) => (
-            <PersonListItem key={p.id} person={p} />
-          ))}
-        </>
-      )}
+        )}
+      </Section>
 
       {stats.visited.length > 0 && (
-        <>
-          <div className="section-label" style={{ marginTop: 20 }}>
-            Senest set
-          </div>
-          {stats.visited.slice(0, 5).map((v) => (
-            <button
-              key={v.personId}
-              type="button"
-              className="history-row"
-              onClick={() => navigate(`/person/${v.personId}`)}
-            >
-              <span>{v.name}</span>
-              <span className="muted">{new Date(v.at).toLocaleDateString('da-DK')}</span>
-            </button>
-          ))}
-        </>
+        <Section title="Senest set">
+          <List>
+            {stats.visited.slice(0, 5).map((v) => (
+              <Row
+                key={v.personId}
+                title={v.name}
+                trailing={new Date(v.at).toLocaleDateString('da-DK', {
+                  day: 'numeric',
+                  month: 'short',
+                })}
+                to={`/person/${v.personId}`}
+              />
+            ))}
+          </List>
+        </Section>
       )}
 
-      <div className="settings-group">
-        <div className="section-label">Bidrag</div>
-        <button type="button" className="settings-item" onClick={() => navigate('/submit')}>
-          <div className="settings-icon gold">{Icons.plus}</div>
-          <div>
-            <div className="settings-text">Tilføj en grav</div>
-            <div className="settings-sub">Foreslå en person, der mangler</div>
-          </div>
-        </button>
-
-        <div className="section-label" style={{ marginTop: 20 }}>
-          Privatliv & GDPR
-        </div>
-        <button type="button" className="settings-item" onClick={download}>
-          <div className="settings-icon green">{Icons.shield}</div>
-          <div>
-            <div className="settings-text">Eksportér mine data</div>
-            <div className="settings-sub">Hent alt, appen har gemt om dig (JSON)</div>
-          </div>
-        </button>
-        <button
-          type="button"
-          className="settings-item"
-          onClick={() => {
-            if (confirmDelete) {
-              clearLocalData();
-              setConfirmDelete(false);
-            } else {
-              setConfirmDelete(true);
+      <Section title="Bidrag">
+        <List inset={58}>
+          <Row
+            leading={
+              <SettingsIcon color="var(--tint)">
+                <Plus />
+              </SettingsIcon>
             }
-          }}
-        >
-          <div className="settings-icon gold">{Icons.close}</div>
-          <div>
-            <div className="settings-text">
-              {confirmDelete ? 'Tryk igen for at slette' : 'Slet mine data'}
-            </div>
-            <div className="settings-sub">Historik, favoritter og statistik på denne enhed</div>
-          </div>
-        </button>
-        <button type="button" className="settings-item" onClick={() => navigate('/about')}>
-          <div className="settings-icon green">{Icons.source}</div>
-          <div>
-            <div className="settings-text">Om MindSTEN, kilder & privatliv</div>
-            <div className="settings-sub">Hvor data kommer fra, og hvordan vi behandler dem</div>
-          </div>
-        </button>
-      </div>
-    </div>
+            title="Tilføj en grav"
+            subtitle="Foreslå en person, der mangler"
+            to="/submit"
+          />
+        </List>
+      </Section>
+
+      <Section
+        title="Privatliv"
+        footer="MindSTEN kræver ingen konto. Historik, favoritter og statistik gemmes kun lokalt."
+      >
+        <List inset={58}>
+          <Row
+            leading={
+              <SettingsIcon color="#2f6fdb">
+                <Download />
+              </SettingsIcon>
+            }
+            title="Eksportér mine data"
+            onClick={download}
+            chevron
+          />
+          <Row
+            leading={
+              <SettingsIcon color="#c8423b">
+                <Trash2 />
+              </SettingsIcon>
+            }
+            title={confirmDelete ? 'Tryk igen for at slette' : 'Slet mine data'}
+            tone="danger"
+            onClick={() => {
+              if (confirmDelete) {
+                clearLocalData();
+                setConfirmDelete(false);
+                showToast('Dine data er slettet');
+              } else {
+                setConfirmDelete(true);
+              }
+            }}
+          />
+        </List>
+      </Section>
+
+      <Section title="Om">
+        <List inset={58}>
+          <Row
+            leading={
+              <SettingsIcon color="#8a7d68">
+                <Info />
+              </SettingsIcon>
+            }
+            title="Om MindSTEN, kilder og privatliv"
+            to="/about"
+          />
+          <Row
+            leading={
+              <SettingsIcon color="#8a4fd1">
+                <RotateCcw />
+              </SettingsIcon>
+            }
+            title="Vis introduktionen igen"
+            onClick={() => {
+              resetOnboarding();
+              window.location.assign(import.meta.env.BASE_URL);
+            }}
+            chevron
+          />
+        </List>
+      </Section>
+    </Page>
   );
 }

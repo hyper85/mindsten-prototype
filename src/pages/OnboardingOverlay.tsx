@@ -1,57 +1,75 @@
-import { useState } from 'react';
+import { Camera, Hourglass, MapPin, ShieldCheck, Sparkles } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { AppMark } from '../components/Illustrations';
 
 interface Props {
   onDone: () => void;
 }
 
-const STEPS = [
+const FEATURES = [
   {
-    icon: '🔍',
-    cls: 'step0',
-    title: 'Scan',
-    desc: 'Peg kameraet mod en gravsten — så fortæller vi, hvem der ligger begravet.',
+    icon: Camera,
+    color: 'var(--tint)',
+    title: 'Scan en gravsten',
+    text: 'Peg kameraet mod stenen. Vi læser navn og årstal og finder personen.',
   },
   {
-    icon: '⏳',
-    cls: 'step1',
-    title: 'Tidsvindue',
-    desc: 'Oplev tiden, personen levede i — konger, krige, opfindelser og hverdagsliv.',
+    icon: Hourglass,
+    color: 'var(--gold)',
+    title: 'Rejs tilbage i tiden',
+    text: 'Se hvordan Danmark så ud, mens de levede – konger, krige og hverdagsliv.',
   },
   {
-    icon: '🗺️',
-    cls: 'step2',
-    title: 'Udforsk',
-    desc: 'Find kendte danskeres grave på kortet, og følg temaruter på kirkegården.',
+    icon: Sparkles,
+    color: '#8a4fd1',
+    title: 'Spørg løs',
+    text: 'Stil dine egne spørgsmål om personen, og få svar fra MindSTENs AI-guide.',
   },
-] as const;
+  {
+    icon: MapPin,
+    color: 'var(--blue)',
+    title: 'Find kendte grave',
+    text: 'Opdag hvor kendte danskere ligger begravet, og følg temaruter.',
+  },
+];
 
 export function OnboardingOverlay({ onDone }: Props) {
-  const [step, setStep] = useState(0);
-  const current = STEPS[step];
-  const isLast = step === STEPS.length - 1;
-
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  // Start keyboard/screen-reader users inside the dialog.
+  useEffect(() => dialogRef.current?.focus({ preventScroll: true }), []);
   return (
-    <div className="onboarding-screen">
-      <div className="onboarding-content">
-        <div className={`onboarding-icon ${current.cls}`}>{current.icon}</div>
-        <div className="onboarding-title">{current.title}</div>
-        <div className="onboarding-desc">{current.desc}</div>
-        <div className="onboarding-dots">
-          {STEPS.map((_, i) => (
-            <div key={i} className={`onboarding-dot ${i === step ? 'active' : ''}`} />
-          ))}
-        </div>
-      </div>
-      <div className="onboarding-bottom">
-        <button
-          type="button"
-          className="onboarding-next"
-          onClick={() => (isLast ? onDone() : setStep(step + 1))}
-        >
-          {isLast ? 'Kom i gang' : 'Næste'}
-        </button>
-        <button type="button" className="onboarding-skip" onClick={onDone}>
-          Spring over
+    <div
+      ref={dialogRef}
+      className="welcome"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="welcome-title"
+      tabIndex={-1}
+    >
+      <AppMark className="welcome-icon" />
+      <h1 id="welcome-title" className="welcome-title">
+        Velkommen til <span>MindSTEN</span>
+      </h1>
+      <ul className="features">
+        {FEATURES.map(({ icon: Icon, color, title, text }) => (
+          <li key={title} className="feature">
+            <span className="feature-icon" style={{ color }}>
+              <Icon aria-hidden="true" />
+            </span>
+            <div>
+              <div className="feature-title">{title}</div>
+              <div className="feature-text">{text}</div>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div className="welcome-footer">
+        <p className="welcome-note">
+          <ShieldCheck aria-hidden="true" />
+          Ingen konto. Dine data bliver på din telefon.
+        </p>
+        <button type="button" className="btn btn-primary" onClick={onDone}>
+          Kom i gang
         </button>
       </div>
     </div>

@@ -15,6 +15,7 @@ personer med kendt gravsted i Danmark fra Wikidata og dansk Wikipedia.
 | --- | --- |
 | **Scan** | Kamera (eller foto-upload) → Claude læser stenen → match på navn, årstal og GPS → op til 5 kandidater med match-procent |
 | **Person** | Portræt, datoer, alder, fødested, biografi, tidslinje, "Vis vej" til graven, kilder, del/favorit |
+| **Spørg om …** | AI-guide: stil dine egne spørgsmål om personen og tiden (svar ud fra biografi og kuraterede fakta) |
 | **Tidsvindue** | Regenter i levetiden, begivenheder med personens alder, befolkningstal, hverdagsliv pr. periode + AI-fortælling om tiden (cachet) |
 | **Hjem** | Grave i nærheden (GPS), "På denne dag", temaruter |
 | **Kort** | OpenStreetMap med alle kendte grave, kategorifiltre, grupperede markører pr. kirkegård |
@@ -23,18 +24,30 @@ personer med kendt gravsted i Danmark fra Wikidata og dansk Wikipedia.
 | **Profil** | Lokal historik, favoritter, statistik, eksport/sletning af data (GDPR) |
 | **Tilføj en grav** | Brugerbidrag og rettelser til redaktionel godkendelse |
 
-Appen er en PWA: den kan lægges på hjemmeskærmen, og kort og portrætter caches til dårlig dækning på
-kirkegården.
+Appen er en PWA: den kan lægges på hjemmeskærmen (med genveje til Scan, Kort og Søg), opdaterer
+sig selv, når der er en ny version, og virker med dårlig dækning på kirkegården — sete personer,
+kortfliser og portrætter gemmes, og en diskret bjælke viser, når telefonen er offline.
+
+**Kvalitet:** WCAG AA-kontrast og axe-scannet uden fejl, Lighthouse 100 i tilgængelighed, best
+practices og SEO, sider indlæses først når de bruges, og en streng Content-Security-Policy.
+
+## Design
+
+Lyst, roligt og inspireret af Apples apps: varm kalkstensbaggrund, hvide kort, mosgrøn som eneste
+handlingsfarve og varm guld til Tidsvinduet. Skrifttyperne er **Inter** (tekst) og **Newsreader**
+(overskrifter) – hostet i appen selv, så de virker offline og ikke sender data til Google.
+Se skill'en `design-system` for farver, komponenter og mønstre.
 
 ## Arkitektur
 
 ```
 Telefon (Vercel, React PWA)
-  ├─ Supabase Postgres  ← persons, cemeteries, routes, era_stories, grave_submissions
+  ├─ Supabase Postgres  ← persons, cemeteries, routes, era_stories, person_answers, grave_submissions
   │     match_gravestone() · search_persons() · nearby_persons()   (pg_trgm + unaccent)
   └─ Supabase Edge Functions (Deno)
         scan-gravestone  → Claude vision → match_gravestone()
         era-story        → Claude + kuraterede historiske fakta → cache
+        ask-person       → »Spørg om …«: AI-guide om personen og tiden → cache
 GitHub Actions
   ├─ CI: lint, typecheck, tests, build, Deno-check, SQL-tests på Postgres 16
   ├─ Deploy Supabase: migrationer + seed + functions + secrets
@@ -84,7 +97,7 @@ Se [`.claude/skills/deploy/SKILL.md`](.claude/skills/deploy/SKILL.md). Kort fort
 
 ## Claude-skills i repoet
 
-`deploy` · `import-persons` · `add-person` · `era-facts` · `scan-pipeline` · `verify-app`
+`deploy` · `import-persons` · `add-person` · `era-facts` · `scan-pipeline` · `design-system` · `verify-app`
 — se `.claude/skills/`. `CLAUDE.md` giver overblikket.
 
 ---

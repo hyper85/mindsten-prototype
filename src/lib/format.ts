@@ -1,5 +1,5 @@
 import { buildEraSnapshot, periodFor } from '../../supabase/functions/_shared/era.ts';
-import type { CategoryFilter, PersonCategory } from '../types';
+import type { CategoryFilter, Person, PersonCategory } from '../types';
 
 const MONTHS = [
   'januar',
@@ -76,29 +76,50 @@ export function deriveEra(birthYear: number | null, deathYear: number | null) {
 
 export { periodFor };
 
-export const CATEGORY_META: Record<PersonCategory, { label: string; emoji: string }> = {
-  writers: { label: 'Forfattere', emoji: '✍️' },
-  art: { label: 'Kunst', emoji: '🎨' },
-  music: { label: 'Musik', emoji: '🎵' },
-  science: { label: 'Videnskab', emoji: '🔬' },
-  thinkers: { label: 'Tænkere & tro', emoji: '💭' },
-  royals: { label: 'Kongelige', emoji: '👑' },
-  naval: { label: 'Flåde & militær', emoji: '⚓' },
-  politics: { label: 'Politik & magt', emoji: '🏛️' },
-  stage: { label: 'Scene & film', emoji: '🎭' },
-  sports: { label: 'Sport', emoji: '🏅' },
-  other: { label: 'Andre', emoji: '✨' },
+export const CATEGORY_META: Record<PersonCategory, { label: string }> = {
+  writers: { label: 'Forfattere' },
+  art: { label: 'Kunst' },
+  music: { label: 'Musik' },
+  science: { label: 'Videnskab' },
+  thinkers: { label: 'Tænkere & tro' },
+  royals: { label: 'Kongelige' },
+  naval: { label: 'Flåde & militær' },
+  politics: { label: 'Politik & magt' },
+  stage: { label: 'Scene & film' },
+  sports: { label: 'Sport' },
+  other: { label: 'Andre' },
 };
 
 export const PERSON_CATEGORIES = Object.keys(CATEGORY_META) as PersonCategory[];
 
 export const CATEGORY_FILTERS: CategoryFilter[] = [
   { id: 'all', label: 'Alle' },
-  ...PERSON_CATEGORIES.map((id) => ({
-    id,
-    label: `${CATEGORY_META[id].emoji} ${CATEGORY_META[id].label}`,
-  })),
+  ...PERSON_CATEGORIES.map((id) => ({ id, label: CATEGORY_META[id].label })),
 ];
+
+/** "Torsdag 1. oktober" */
+export function formatToday(date = new Date()): string {
+  const s = date.toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long' });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+export function greeting(date = new Date()): string {
+  const h = date.getHours();
+  if (h < 5) return 'God nat';
+  if (h < 10) return 'God morgen';
+  if (h < 12) return 'God formiddag';
+  if (h < 18) return 'God eftermiddag';
+  return 'God aften';
+}
+
+/** "H.C. Andersen" → "HA", "Christian 4." → "C". */
+export function initials(name: string): string {
+  const words = name.split(/\s+/).filter((w) => /^\p{L}/u.test(w));
+  if (words.length === 0) return name.charAt(0).toUpperCase();
+  const first = words[0].charAt(0);
+  const last = words.length > 1 ? words[words.length - 1].charAt(0) : '';
+  return (first + last).toUpperCase();
+}
 
 export function formatDistance(meters: number | null | undefined): string {
   if (meters === null || meters === undefined || !Number.isFinite(meters)) return '';
@@ -109,4 +130,30 @@ export function formatDistance(meters: number | null | undefined): string {
 
 export function formatNumber(n: number): string {
   return n.toLocaleString('da-DK');
+}
+
+/** "Forfatter · 1805–1875" */
+export function personSubtitle(person: Person): string {
+  return [
+    person.profession || CATEGORY_META[person.category].label,
+    lifespanLabel(person.birthYear, person.deathYear),
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+/**
+ * Wikimedia Commons serves resized images via `Special:FilePath/...?width=N`; ask for the
+ * size we actually draw (×2 for retina) instead of the 640px portrait.
+ */
+export function imageAtWidth(url: string, cssPx: number): string {
+  if (!/^https:\/\/commons\.wikimedia\.org\/wiki\/Special:FilePath\//.test(url)) return url;
+  const width = Math.ceil((cssPx * 2) / 40) * 40;
+  try {
+    const u = new URL(url);
+    u.searchParams.set('width', String(width));
+    return u.toString();
+  } catch {
+    return url;
+  }
 }

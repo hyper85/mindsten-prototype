@@ -1,17 +1,71 @@
+import {
+  ArrowRight,
+  BookOpen,
+  CircleCheck,
+  ExternalLink,
+  Heart,
+  Hourglass,
+  Map as MapIcon,
+  MessageCircleQuestion,
+  Navigation,
+  PenLine,
+  Share,
+  Sparkles,
+} from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { buildEraSnapshot } from '../../supabase/functions/_shared/era.ts';
-import { ConfidenceCounter } from '../components/ConfidenceCounter';
-import { Icons } from '../components/Icons';
-import { PageHeader } from '../components/PageHeader';
+import { CategoryPill } from '../components/CategoryIcon';
+import { CATEGORY_STYLE } from '../lib/categories';
+import { Ornament } from '../components/Illustrations';
+import { NavBar, Page, Section } from '../components/Layout';
+import { List, Row, ValueRow } from '../components/List';
 import { EmptyState, LoadingState } from '../components/StatePanel';
 import { getPersonById } from '../lib/api';
+import { suggestedQuestions } from '../lib/ask';
 import { ageAtDeath, CATEGORY_META } from '../lib/format';
 import { directionsUrl } from '../lib/geo';
 import { isFavorite, recordVisit, toggleFavorite } from '../lib/storage';
+import { showToast } from '../lib/toast';
 import type { Person } from '../types';
+import { useDocumentTitle } from '../lib/title';
 
 type Status = 'loading' | 'ok' | 'not-found' | 'error';
+
+function yearsLabel(person: Person): string {
+  return [person.birthYear ?? '', person.deathYear ?? ''].join(' – ');
+}
+
+/** The hero: the person's portrait in an arched frame, or a drawn gravestone. */
+function Memorial({ person }: { person: Person }) {
+  const glow = CATEGORY_STYLE[person.category].soft;
+  const [imageFailed, setImageFailed] = useState(false);
+  return (
+    <div className="memorial" style={{ ['--memorial-glow' as string]: glow }}>
+      {person.imageUrl && !imageFailed ? (
+        <div>
+          <div className="portrait">
+            <img
+              src={person.imageUrl}
+              alt={`Portræt af ${person.name}`}
+              referrerPolicy="no-referrer"
+              decoding="async"
+              onError={() => setImageFailed(true)}
+            />
+          </div>
+          {person.imageCredit && <div className="portrait-credit">{person.imageCredit}</div>}
+        </div>
+      ) : (
+        <div className="stone" aria-hidden="true">
+          <Ornament className="stone-ornament" />
+          <div className="stone-name">{person.name}</div>
+          <div className="stone-years">{yearsLabel(person)}</div>
+          {person.profession && <div className="stone-epitaph">{person.profession}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function PersonPage() {
   const { id } = useParams<{ id: string }>();
@@ -19,10 +73,10 @@ export function PersonPage() {
   const location = useLocation();
   const matchScore = (location.state as { matchScore?: number } | null)?.matchScore;
   const [person, setPerson] = useState<Person | null>(null);
+  useDocumentTitle(person?.name);
   const [status, setStatus] = useState<Status>('loading');
   const [expanded, setExpanded] = useState(false);
   const [favorite, setFavorite] = useState(false);
-  const [shared, setShared] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,254 +113,270 @@ export function PersonPage() {
 
   if (status === 'loading') {
     return (
-      <div className="profile-screen">
+      <>
+        <NavBar />
         <LoadingState />
-      </div>
+      </>
     );
   }
 
-  if (status === 'not-found' || status === 'error' || !person) {
+  if (status !== 'ok' || !person) {
     return (
-      <div className="profile-screen">
+      <>
+        <NavBar />
         <EmptyState
           title={status === 'not-found' ? 'Person ikke fundet' : 'Kunne ikke hente person'}
           description={
             status === 'not-found'
-              ? 'Den ønskede person findes ikke i databasen.'
-              : 'Prøv igen om et øjeblik.'
+              ? 'Den ønskede person findes ikke i arkivet.'
+              : 'Tjek din forbindelse, og prøv igen om et øjeblik.'
           }
-          actionLabel="Tilbage til hjem"
+          actionLabel="Til forsiden"
           onAction={() => navigate('/home')}
         />
-      </div>
+      </>
     );
   }
 
   const age = ageAtDeath(person.birthDate, person.deathDate, person.birthYear, person.deathYear);
+  const hasLocation = person.lat !== null && person.lng !== null;
   const highlights = era
     ? era.events
         .filter((e) => e.scope === 'dk' && e.age > 0 && e.year < (person.deathYear ?? 0))
         .slice(0, 3)
     : [];
+  const bioIsLong = Boolean(person.fullBio && person.fullBio !== person.shortBio);
 
   const share = async () => {
     const url = window.location.href;
     const text = `${person.name} (${person.born} – ${person.died}) · ${person.cemetery}`;
     try {
-      if (navigator.share) await navigator.share({ title: person.name, text, url });
-      else {
+      if (navigator.share) {
+        await navigator.share({ title: person.name, text, url });
+      } else {
         await navigator.clipboard.writeText(`${text}\n${url}`);
-        setShared(true);
+        showToast('Link kopieret');
       }
-    } catch {
-      /* user cancelled */
+    } catch (err) {
+      if ((err as { name?: string })?.name !== 'AbortError') showToast('Kunne ikke dele linket');
     }
   };
 
+  const toggleFav = () => {
+    const now = toggleFavorite(person.id);
+    setFavorite(now);
+    showToast(now ? 'Gemt i dine favoritter' : 'Fjernet fra favoritter');
+  };
+
   return (
-    <div className="profile-screen">
-      <PageHeader
-        title={person.cemetery || 'Person'}
-        actions={
-          <>
-            <button type="button" className="profile-back" aria-label="Del" onClick={share}>
-              {Icons.share}
-            </button>
+    <>
+      <NavBar title={person.name} />
+      <Page flush>
+        <Memorial person={person} />
+
+        {matchScore !== undefined && (
+          <div className="match">
+            <CircleCheck aria-hidden="true" />
+            Personen er fundet
+            <span className="badge">{matchScore}% match</span>
+          </div>
+        )}
+
+        <header className="person-head">
+          <CategoryPill category={person.category} />
+          <h1 className="person-name">{person.name}</h1>
+          <div className="person-dates">
+            {person.born} – {person.died}
+            {age !== null && ` · ${age} år`}
+          </div>
+        </header>
+
+        <div className="actions">
+          <a
+            className="action"
+            href={
+              hasLocation ? directionsUrl(person.lat as number, person.lng as number) : undefined
+            }
+            target="_blank"
+            rel="noreferrer"
+            aria-disabled={!hasLocation}
+          >
+            <Navigation aria-hidden="true" />
+            Vis vej
+          </a>
+          <button
+            type="button"
+            className="action"
+            aria-disabled={!hasLocation}
+            onClick={() =>
+              hasLocation && navigate(`/map?focus=${person.id}&lat=${person.lat}&lng=${person.lng}`)
+            }
+          >
+            <MapIcon aria-hidden="true" />
+            Kort
+          </button>
+          <button type="button" className="action" onClick={share}>
+            <Share aria-hidden="true" />
+            Del
+          </button>
+          <button
+            type="button"
+            className={`action ${favorite ? 'is-on' : ''}`}
+            aria-pressed={favorite}
+            onClick={toggleFav}
+          >
+            <Heart aria-hidden="true" fill={favorite ? 'currentColor' : 'none'} />
+            {favorite ? 'Gemt' : 'Gem'}
+          </button>
+        </div>
+
+        {person.shortBio && (
+          <Section title="Om personen">
+            <div className="card">
+              <p className="body-text">{expanded ? person.fullBio : person.shortBio}</p>
+              {bioIsLong && (
+                <button type="button" className="link-btn" onClick={() => setExpanded(!expanded)}>
+                  {expanded ? 'Vis mindre' : 'Læs mere'}
+                </button>
+              )}
+            </div>
+          </Section>
+        )}
+
+        <Section>
+          <div className="ask-card">
+            <div className="eyebrow">
+              <Sparkles aria-hidden="true" />
+              AI-guide
+            </div>
+            <h2 className="ask-card-title">Spørg om {person.name}</h2>
+            <p className="ask-card-text">
+              Nysgerrig på mere? Stil dine egne spørgsmål om personen og tiden.
+            </p>
+            <div className="suggestions">
+              {suggestedQuestions(person)
+                .slice(0, 3)
+                .map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    className="suggestion"
+                    onClick={() => navigate(`/person/${person.id}/ask`, { state: { question: q } })}
+                  >
+                    <MessageCircleQuestion aria-hidden="true" />
+                    {q}
+                  </button>
+                ))}
+              <button
+                type="button"
+                className="suggestion is-own"
+                onClick={() => navigate(`/person/${person.id}/ask`)}
+              >
+                <PenLine aria-hidden="true" />
+                Stil dit eget spørgsmål
+              </button>
+            </div>
+          </div>
+        </Section>
+
+        <Section>
+          <div className="tw-card">
+            <div className="eyebrow">
+              <Hourglass aria-hidden="true" />
+              Tidsvindue
+            </div>
+            <h2 className="tw-card-title">{person.timeWindowTitle}</h2>
+            <div className="tw-card-sub">Oplev den tid, {person.name} levede i</div>
+            {highlights.length > 0 && (
+              <ul className="tw-highlights">
+                {highlights.map((e) => (
+                  <li key={`${e.year}-${e.title}`}>
+                    <span className="age-pill">{e.age} år</span>
+                    <span>
+                      {e.title} <span style={{ opacity: 0.6 }}>({e.year})</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
             <button
               type="button"
-              className={`profile-back ${favorite ? 'fav-on' : ''}`}
-              aria-label={favorite ? 'Fjern fra favoritter' : 'Gem som favorit'}
-              aria-pressed={favorite}
-              onClick={() => setFavorite(toggleFavorite(person.id))}
+              className="btn btn-dark"
+              style={{ marginTop: highlights.length ? 0 : 16 }}
+              onClick={() => navigate(`/person/${person.id}/time-window`)}
             >
-              {favorite ? Icons.heartFilled : Icons.heart}
+              Oplev tiden
+              <ArrowRight aria-hidden="true" />
             </button>
-          </>
-        }
-      />
-      {shared && <div className="toast">Link kopieret</div>}
-
-      {matchScore !== undefined && (
-        <div className="match-banner fade-up">
-          <span style={{ color: 'var(--moss-300)' }}>{Icons.check}</span>
-          Person fundet
-          <ConfidenceCounter value={matchScore} />
-        </div>
-      )}
-
-      {person.imageUrl && (
-        <figure className="person-portrait fade-up">
-          <img
-            src={person.imageUrl}
-            alt={`Portræt af ${person.name}`}
-            referrerPolicy="no-referrer"
-          />
-          {person.imageCredit && <figcaption>{person.imageCredit}</figcaption>}
-        </figure>
-      )}
-
-      <div className="person-name-area fade-up fade-up-d1">
-        <div className="person-category">
-          {CATEGORY_META[person.category].emoji} {CATEGORY_META[person.category].label}
-        </div>
-        <h1 className="person-main-name">{person.name}</h1>
-        <div className="person-dates">
-          {person.born} – {person.died}
-        </div>
-      </div>
-
-      <div className="quick-facts fade-up fade-up-d2">
-        <div className="fact-card">
-          <div className="fact-label">Virke</div>
-          <div className="fact-value">
-            {person.profession || CATEGORY_META[person.category].label}
           </div>
-        </div>
-        <div className="fact-card">
-          <div className="fact-label">Blev</div>
-          <div className="fact-value">{age !== null ? `${age} år` : 'Ukendt'}</div>
-        </div>
-        <div className="fact-card">
-          <div className="fact-label">Født i</div>
-          <div className="fact-value">{person.birthPlace ?? 'Ukendt'}</div>
-        </div>
-        <div className="fact-card">
-          <div className="fact-label">Æra</div>
-          <div className="fact-value">{person.era}</div>
-        </div>
-      </div>
+        </Section>
 
-      {person.shortBio && (
-        <div className="bio-section fade-up fade-up-d3">
-          <div className="section-label">Biografi</div>
-          <div className="bio-text">{expanded ? person.fullBio : person.shortBio}</div>
-          {person.fullBio && person.fullBio !== person.shortBio && (
-            <button type="button" className="bio-toggle" onClick={() => setExpanded(!expanded)}>
-              {expanded ? 'Vis mindre' : 'Læs mere…'}
-            </button>
+        <Section title="Fakta">
+          <List>
+            <ValueRow
+              label="Virke"
+              value={person.profession || CATEGORY_META[person.category].label}
+            />
+            <ValueRow
+              label="Født"
+              value={[person.born, person.birthPlace].filter(Boolean).join(', ')}
+            />
+            <ValueRow
+              label="Død"
+              value={[person.died, person.deathPlace].filter(Boolean).join(', ')}
+            />
+            {person.cemetery && (
+              <Row
+                title={<span className="row-label">Begravet</span>}
+                trailing={<span style={{ color: 'var(--text)' }}>{person.cemetery}</span>}
+                to={person.cemeteryId ? `/cemetery/${person.cemeteryId}` : undefined}
+              />
+            )}
+          </List>
+          {person.locationPrecision === 'cemetery' && (
+            <div className="section-footer">Kortet viser kirkegården – ikke den præcise grav.</div>
           )}
-        </div>
-      )}
+        </Section>
 
-      <div
-        className="time-window-cta fade-up fade-up-d4"
-        role="button"
-        tabIndex={0}
-        onClick={() => navigate(`/person/${person.id}/time-window`)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            navigate(`/person/${person.id}/time-window`);
-          }
-        }}
-      >
-        <div className="tw-label">Tidsvindue</div>
-        <div className="tw-title">{person.timeWindowTitle}</div>
-        <div className="tw-era">
-          {person.eraYears} · {person.era}
-        </div>
-        {highlights.length > 0 && (
-          <ul className="tw-highlights">
-            {highlights.map((e) => (
-              <li key={`${e.year}-${e.title}`}>
-                <strong>
-                  {e.year} · {e.age} år
-                </strong>{' '}
-                {e.title}
-              </li>
+        {person.timeline.length > 0 && (
+          <Section title="Livet i årstal">
+            <div className="card">
+              <ol className="timeline">
+                {person.timeline.map((t, i) => (
+                  <li key={`${t.year}-${i}`} className="tl-item">
+                    <div className="tl-year">{t.year}</div>
+                    <div className="tl-text">{t.event}</div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </Section>
+        )}
+
+        <Section title="Kilder">
+          <List>
+            {person.sources.map((s, i) => (
+              <Row
+                key={`${s.label}-${i}`}
+                leading={<BookOpen size={20} color="var(--text-2)" aria-hidden="true" />}
+                title={s.label}
+                href={s.url ?? undefined}
+                trailing={s.url ? <ExternalLink size={16} aria-hidden="true" /> : undefined}
+                chevron={false}
+              />
             ))}
-          </ul>
-        )}
-        <div className="tw-play">
-          <div className="tw-play-circle">{Icons.play}</div>
-          Oplev tiden, {person.name} levede i
-        </div>
-      </div>
-
-      {person.timeline.length > 0 && (
-        <div className="timeline-section">
-          <div className="section-label">Tidslinje</div>
-          {person.timeline.map((t, i) => (
-            <div
-              key={`${t.year}-${i}`}
-              className="timeline-item fade-up"
-              style={{ animationDelay: `${i * 0.06}s` }}
+          </List>
+          <div className="section-footer center">
+            <Link
+              to="/submit"
+              state={{ correctionFor: person.id, prefill: { name: person.name } }}
+              style={{ color: 'var(--tint)', fontWeight: 500, textDecoration: 'none' }}
             >
-              <div className="timeline-dot" />
-              <div className="timeline-year">{t.year}</div>
-              <div className="timeline-event">{t.event}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="grave-card">
-        <div className="section-label">Gravstedet</div>
-        <div className="grave-name">
-          {person.cemeteryId ? (
-            <Link to={`/cemetery/${person.cemeteryId}`}>{person.cemetery}</Link>
-          ) : (
-            person.cemetery
-          )}
-          {person.city && <span className="grave-city"> · {person.city}</span>}
-        </div>
-        {person.locationPrecision === 'cemetery' && (
-          <div className="grave-precision">
-            Placeringen er kirkegårdens — ikke den præcise grav.
+              Er noget forkert? Foreslå en rettelse
+            </Link>
           </div>
-        )}
-        {person.lat !== null && person.lng !== null && (
-          <div className="grave-actions">
-            <a
-              className="secondary-btn"
-              href={directionsUrl(person.lat, person.lng)}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {Icons.directions} Vis vej
-            </a>
-            <button
-              type="button"
-              className="secondary-btn"
-              onClick={() =>
-                navigate(`/map?focus=${person.id}&lat=${person.lat}&lng=${person.lng}`)
-              }
-            >
-              {Icons.map} Se på kortet
-            </button>
-          </div>
-        )}
-      </div>
-
-      <div className="sources-section">
-        <div className="section-label">Kilder</div>
-        {person.sources.map((s, i) =>
-          s.url ? (
-            <a
-              key={`${s.label}-${i}`}
-              className="source-item"
-              href={s.url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <span style={{ color: 'var(--stone-600)' }}>{Icons.source}</span>
-              {s.label} {Icons.external}
-            </a>
-          ) : (
-            <div key={`${s.label}-${i}`} className="source-item">
-              <span style={{ color: 'var(--stone-600)' }}>{Icons.source}</span>
-              {s.label}
-            </div>
-          ),
-        )}
-        <Link
-          className="report-link"
-          to="/submit"
-          state={{ correctionFor: person.id, prefill: { name: person.name } }}
-        >
-          Er noget forkert? Foreslå en rettelse
-        </Link>
-      </div>
-    </div>
+        </Section>
+      </Page>
+    </>
   );
 }

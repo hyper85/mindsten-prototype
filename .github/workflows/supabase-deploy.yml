@@ -9,6 +9,9 @@ name: Deploy Supabase
 #     ANTHROPIC_API_KEY     Claude API directly (console.anthropic.com), or
 #     OPENCODE_API_KEY      OpenCode Zen gateway (opencode.ai) — Claude models via /v1/messages
 #   LLM_MODEL (optional)    model id for the chosen provider
+#   ALLOWED_ORIGINS (optional)  comma-separated browser origins allowed to call the functions,
+#                               e.g. https://mindsten.dk,https://*.vercel.app (unset = any)
+#   ASK_SIGNING_KEY (optional)  HMAC key for ask-person answer signatures (default: service role key)
 
 on:
   push:
@@ -16,12 +19,20 @@ on:
     paths: ['supabase/**', '.github/workflows/supabase-deploy.yml']
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: supabase-deploy
   cancel-in-progress: false
 
 jobs:
+  # Lint, tests, Deno check and migrations + SQL tests on a scratch Postgres first.
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   deploy:
+    needs: ci
     runs-on: ubuntu-latest
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -41,7 +52,7 @@ jobs:
           fi
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.118.0
       - run: supabase link --project-ref "$PROJECT_REF"
       - name: Push migrations and seed
         run: supabase db push --include-seed
@@ -50,16 +61,18 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
+          ASK_SIGNING_KEY: ${{ secrets.ASK_SIGNING_KEY }}
         run: |
-          args=""
-          for v in ANTHROPIC_API_KEY OPENCODE_API_KEY LLM_MODEL; do
-            [ -n "${!v}" ] && args="$args $v=${!v}"
+          args=()
+          for v in ANTHROPIC_API_KEY OPENCODE_API_KEY LLM_MODEL ALLOWED_ORIGINS ASK_SIGNING_KEY; do
+            if [ -n "${!v}" ]; then args+=("$v=${!v}"); fi
           done
           if [ -z "$ANTHROPIC_API_KEY$OPENCODE_API_KEY" ]; then
             echo "::warning::Neither ANTHROPIC_API_KEY nor OPENCODE_API_KEY is set — scanning and AI stories will return errors."
           fi
-          if [ -n "$args" ]; then
-            supabase secrets set --project-ref "$PROJECT_REF" $args
+          if [ "${#args[@]}" -gt 0 ]; then
+            supabase secrets set --project-ref "$PROJECT_REF" "${args[@]}"
           fi
       - name: Deploy Edge Functions
         run: supabase functions deploy --project-ref "$PROJECT_REF" --use-api

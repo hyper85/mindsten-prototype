@@ -36,7 +36,15 @@ export function getCurrentPosition(timeoutMs = 8000): Promise<Coords | null> {
   });
 }
 
-export function useGeolocation(auto = true) {
+interface GeolocationOptions {
+  /**
+   * Locate automatically, but only when the visitor has already granted
+   * location access — we never pop the permission prompt unasked.
+   */
+  autoIfGranted?: boolean;
+}
+
+export function useGeolocation({ autoIfGranted = true }: GeolocationOptions = {}) {
   const [coords, setCoords] = useState<Coords | null>(null);
   const [status, setStatus] = useState<GeoStatus>('idle');
 
@@ -61,8 +69,24 @@ export function useGeolocation(auto = true) {
   }, []);
 
   useEffect(() => {
-    if (auto) locate();
-  }, [auto, locate]);
+    if (!autoIfGranted || typeof navigator === 'undefined') return;
+    if (!navigator.geolocation) {
+      setStatus('unavailable');
+      return;
+    }
+    let cancelled = false;
+    navigator.permissions
+      ?.query({ name: 'geolocation' as PermissionName })
+      .then((result) => {
+        if (cancelled) return;
+        if (result.state === 'granted') locate();
+        else if (result.state === 'denied') setStatus('denied');
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [autoIfGranted, locate]);
 
   return { coords, status, locate };
 }
