@@ -15,6 +15,7 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@0.129.0';
 import { extractJsonObject } from './json.ts';
 import {
+  ChatStreamAccumulator,
   readChatCompletion,
   toChatContent,
   type ChatCompletionMessage,
@@ -26,6 +27,9 @@ const DEFAULT_ANTHROPIC_MODEL = 'claude-opus-5-5';
 // The owner's OpenCode Zen model (served on /v1/chat/completions); override with LLM_MODEL.
 const DEFAULT_OPENCODE_MODEL = 'glm-5.3-flash';
 const TIMEOUT_MS = 50_000;
+// OpenCode chat models (e.g. GLM) can be slow to write a long story. Supabase drops a request
+// that sends no response for 150 s, so finish (or give up) well before that.
+const CHAT_TIMEOUT_MS = 110_000;
 // Edge Functions have a limited wall-clock budget: fail a hung request instead of
 // waiting for the SDK's 10-minute default, and retry at most once.
 const CLIENT_OPTIONS = { timeout: TIMEOUT_MS, maxRetries: 1 } as const;
@@ -110,43 +114,90 @@ async function chatCompletion(
   messages: ChatCompletionMessage[],
   maxTokens: number,
 ): Promise<{ text: string; refused: boolean }> {
-  // One overall budget: a slow model must fail well inside the Edge Function's wall clock
-  // (and the app's wait), so a timed-out request is never retried.
-  const deadline = Date.now() + TIMEOUT_MS;
-  const body = JSON.stringify({ ...extraBody(), model, max_tokens: maxTokens, messages });
+  // One overall budget that ends well inside the Edge Function's limits (and the app's
+  // wait). The answer is streamed, so a slow model is logged with how far it got.
+  const started = Date.now();
+  const deadline = started + CHAT_TIMEOUT_MS;
+  const body = JSON.stringify({
+    ...extraBody(),
+    model,
+    max_tokens: maxTokens,
+    messages,
+    stream: true,
+  });
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
     const remaining = deadline - Date.now();
     if (remaining < 5_000) break;
-    let res: Response;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), remaining);
+    const acc = new ChatStreamAccumulator();
     try {
-      res = await fetch(`${cfg.baseURL}/v1/chat/completions`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${cfg.apiKey}` },
-        body,
-        signal: AbortSignal.timeout(remaining),
-      });
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'TimeoutError') {
-        throw new Error(`model did not answer within ${TIMEOUT_MS / 1000} s (${model})`);
+      let res: Response;
+      try {
+        res = await fetch(`${cfg.baseURL}/v1/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            accept: 'text/event-stream',
+            authorization: `Bearer ${cfg.apiKey}`,
+          },
+          body,
+          signal: controller.signal,
+        });
+      } catch (err) {
+        if (controller.signal.aborted) throw timeoutError(model, started, acc);
+        lastError = err; // network error before any answer: retry once
+        continue;
       }
-      lastError = err; // network error: retry once
-      continue;
+      if (res.status === 429) throw new LlmRateLimitError(await res.text());
+      if (res.status >= 500 && attempt === 0) {
+        lastError = new Error(`${res.status} ${(await res.text()).slice(0, 300)}`);
+        continue;
+      }
+      if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 300)}`);
+
+      let result: { text: string; refused: boolean; finishReason: string };
+      try {
+        if (!(res.headers.get('content-type') ?? '').includes('text/event-stream')) {
+          // The gateway ignored `stream`: a plain JSON completion.
+          result = readChatCompletion(await res.json());
+        } else {
+          const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
+          while (!acc.done) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            acc.push(value);
+          }
+          acc.end();
+          reader.cancel().catch(() => undefined);
+          result = acc.result();
+        }
+      } catch (err) {
+        if (controller.signal.aborted) throw timeoutError(model, started, acc);
+        throw err;
+      }
+      console.log(
+        `llm ${model}: ${Date.now() - started} ms, ${result.text.length} chars, ` +
+          `${acc.reasoningChars} reasoning chars, finish ${result.finishReason || 'none'}`,
+      );
+      // An empty answer (e.g. the token budget spent on reasoning) is a failure, not a refusal.
+      if (!result.text && !result.refused) {
+        throw new Error(`empty model reply (finish_reason: ${result.finishReason || 'none'})`);
+      }
+      return result;
+    } finally {
+      clearTimeout(timer);
     }
-    if (res.status === 429) throw new LlmRateLimitError(await res.text());
-    if (res.status >= 500 && attempt === 0) {
-      lastError = new Error(`${res.status} ${(await res.text()).slice(0, 300)}`);
-      continue;
-    }
-    if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 300)}`);
-    const result = readChatCompletion(await res.json());
-    // An empty answer (e.g. the token budget spent on reasoning) is a failure, not a refusal.
-    if (!result.text && !result.refused) {
-      throw new Error(`empty model reply (finish_reason: ${result.finishReason || 'none'})`);
-    }
-    return result;
   }
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+function timeoutError(model: string, started: number, acc: ChatStreamAccumulator): Error {
+  return new Error(
+    `model did not finish within ${Math.round((Date.now() - started) / 1000)} s (${model}; ` +
+      `${acc.content.length} answer chars, ${acc.reasoningChars} reasoning chars so far)`,
+  );
 }
 
 interface JsonRequest {

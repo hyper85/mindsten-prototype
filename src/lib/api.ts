@@ -22,8 +22,8 @@ import type {
 } from '../types';
 
 const SIMULATED_LATENCY_MS = 150;
-// AI calls give up after this long (the Edge Functions stop the model at ~50 s).
-const AI_TIMEOUT_MS = 65_000;
+// AI calls give up after this long (the Edge Functions stop the model at ~110 s).
+const AI_TIMEOUT_MS = 130_000;
 // Lists change rarely; reuse them within a visit so back navigation is instant.
 const MEMO_TTL_MS = 5 * 60 * 1000;
 
