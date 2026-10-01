@@ -1,193 +1,92 @@
-# 🪦 MindSTEN — Interactive Prototype
+# 🪦 MindSTEN
 
 > *Bring fortiden til live, én sten ad gangen.*
-> *(Bring the past to life, one stone at a time.)*
 
-**MindSTEN** is an augmented heritage platform that transforms grave visits into immersive historical experiences. Point your phone at a gravestone, and unlock the story of the person buried there.
+**MindSTEN** er en app til kirkegårdsbesøg: Peg telefonen mod en gravsten, så læser appen navn og
+årstal, finder personen og fortæller om både personen og **tiden, de levede i** — konger, krige,
+opfindelser, befolkningstal og hverdagsliv.
 
-This is a fully interactive prototype demonstrating the core user experience.
+Vi starter med kendte danskere: et kurateret sæt på 25 personer plus en automatisk import af alle
+personer med kendt gravsted i Danmark fra Wikidata og dansk Wikipedia.
 
-![MindSTEN Prototype](https://img.shields.io/badge/Status-Prototype-C9A84C?style=flat-square) ![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react) ![Vite](https://img.shields.io/badge/Vite-5-646CFF?style=flat-square&logo=vite)
+## Funktioner
 
----
+| Skærm | Hvad den gør |
+| --- | --- |
+| **Scan** | Kamera (eller foto-upload) → Claude læser stenen → match på navn, årstal og GPS → op til 5 kandidater med match-procent |
+| **Person** | Portræt, datoer, alder, fødested, biografi, tidslinje, "Vis vej" til graven, kilder, del/favorit |
+| **Tidsvindue** | Regenter i levetiden, begivenheder med personens alder, befolkningstal, hverdagsliv pr. periode + AI-fortælling om tiden (cachet) |
+| **Hjem** | Grave i nærheden (GPS), "På denne dag", temaruter |
+| **Kort** | OpenStreetMap med alle kendte grave, kategorifiltre, grupperede markører pr. kirkegård |
+| **Søg** | Fejltolerant navnesøgning (ø/o, å/a …), kategorier, kirkegårde |
+| **Kirkegård / Rute** | Alle kendte grave på en kirkegård; temaruter med stop i rækkefølge |
+| **Profil** | Lokal historik, favoritter, statistik, eksport/sletning af data (GDPR) |
+| **Tilføj en grav** | Brugerbidrag og rettelser til redaktionel godkendelse |
 
-## ✨ What's in the Prototype
+Appen er en PWA: den kan lægges på hjemmeskærmen, og kort og portrætter caches til dårlig dækning på
+kirkegården.
 
-| Screen | Description |
-|--------|-------------|
-| **Onboarding** | 3-step intro flow (Scan → Tidsvindue → Udforsk) |
-| **Home** | Nearby graves, themed walking routes |
-| **Scanner** | Camera viewfinder with scan simulation |
-| **Person Profile** | H.C. Andersen, Kierkegaard, Niels Bohr, Niels Juel |
-| **Tidsvindue** | Time Window video experience with era context |
-| **Map** | Filterable pins, category chips, bottom sheet |
-| **Profile** | Stats, GDPR settings, institutional access |
+## Arkitektur
 
-## 🎨 Design
-
-- **Palette**: Stone (dark), Moss (green), Gold (accent) — colors of a Danish churchyard
-- **Typography**: Cormorant Garamond (heritage serif) + DM Sans (interface)
-- **Tone**: Calm, respectful, historically grounded
-
----
-
-## 🚀 Quick Start
-
-```bash
-# Install dependencies
-npm install
-
-# Run locally (uses in-repo fixtures)
-npm run dev
+```
+Telefon (Vercel, React PWA)
+  ├─ Supabase Postgres  ← persons, cemeteries, routes, era_stories, grave_submissions
+  │     match_gravestone() · search_persons() · nearby_persons()   (pg_trgm + unaccent)
+  └─ Supabase Edge Functions (Deno)
+        scan-gravestone  → Claude vision → match_gravestone()
+        era-story        → Claude + kuraterede historiske fakta → cache
+GitHub Actions
+  ├─ CI: lint, typecheck, tests, build, Deno-check, SQL-tests på Postgres 16
+  ├─ Deploy Supabase: migrationer + seed + functions + secrets
+  └─ Import: Wikidata + dansk Wikipedia (månedligt)
 ```
 
-Then open [http://localhost:5173/mindsten-prototype/](http://localhost:5173/mindsten-prototype/) in your browser.
+Uden Supabase-miljøvariabler kører appen i **demo-tilstand** på de kuraterede data i `src/data/`.
 
-### Connect to Supabase (optional)
+## Kom i gang lokalt
 
-The app runs against typed fixtures in `src/data/` by default, so nothing is
-required to get started. To read from a real Postgres database instead:
+```bash
+npm install
+npm run dev            # http://localhost:5173 — demo-tilstand
+```
 
-1. Create a Supabase project (EU region recommended for GDPR).
-2. In the Supabase SQL editor, run `supabase/migrations/0001_init.sql`
-   followed by `supabase/seed.sql`.
-3. Copy `.env.example` to `.env.local` and fill in `VITE_SUPABASE_URL` and
-   `VITE_SUPABASE_ANON_KEY` from Project Settings → API.
-4. Restart `npm run dev`.
-
-If the env vars are missing or Supabase errors out, the app silently falls
-back to the fixtures — so the GitHub Pages demo keeps working either way.
-See `supabase/README.md` for details.
+Med backend: kopiér `.env.example` til `.env.local` og udfyld `VITE_SUPABASE_URL` og
+`VITE_SUPABASE_ANON_KEY`.
 
 ### Scripts
 
-- `npm run dev` — Vite dev server
-- `npm run build` — typecheck + production build
-- `npm run typecheck` — TypeScript only
-- `npm run test` — Vitest smoke tests
-- `npm run lint` — ESLint
-- `npm run format` — Prettier write
+| Kommando | |
+| --- | --- |
+| `npm run dev` / `build` / `preview` | Vite |
+| `npm run lint` / `typecheck` / `test` | Kvalitetstjek |
+| `npm run check:functions` | Deno-typecheck af Edge Functions (kræver `deno`) |
+| `npm run seed:generate` | Genererer `supabase/seed.sql` fra `src/data/` |
+| `npm run import:wikidata -- --dry-run --limit 50` | Wikidata-import (se skill `import-persons`) |
 
----
+## Deploy
 
-## 📦 Deploy to GitHub Pages
+Se [`.claude/skills/deploy/SKILL.md`](.claude/skills/deploy/SKILL.md). Kort fortalt:
 
-### Option A: Automated (gh-pages package)
+1. Opret et Supabase-projekt (EU-region).
+2. Tilføj GitHub-secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`,
+   `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` og én modelnøgle: `ANTHROPIC_API_KEY` **eller**
+   `OPENCODE_API_KEY` (OpenCode Zen).
+3. Kør workflowet **Deploy Supabase** og derefter **Import persons from Wikidata**.
+4. Importér repoet i Vercel og sæt `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`.
 
-```bash
-# 1. Create a repo on GitHub (e.g., "mindsten-prototype")
+## Data, licenser og privatliv
 
-# 2. Update the base path in vite.config.js to match your repo name:
-#    base: '/your-repo-name/',
+- **Wikidata** (CC0), **dansk Wikipedia** (CC BY-SA 4.0, kildehenvisning på hver person),
+  **Wikimedia Commons** (licens pr. fil), **OpenStreetMap** (ODbL).
+- Kun personer, der har været døde i mindst 10 år (databeskyttelseslovens § 2, stk. 5).
+- Ingen konto. Historik og favoritter ligger kun på telefonen. Scan-billeder gemmes ikke.
+- AI-fortællinger er markeret som AI-genererede og bygger på kuraterede fakta.
 
-# 3. Initialize git and push
-git init
-git add .
-git commit -m "Initial commit — MindSTEN prototype"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/mindsten-prototype.git
-git push -u origin main
+## Claude-skills i repoet
 
-# 4. Deploy to GitHub Pages
-npm run deploy
-```
-
-Your prototype will be live at: `https://YOUR_USERNAME.github.io/mindsten-prototype/`
-
-### Option B: GitHub Actions (automatic on push)
-
-Create `.github/workflows/deploy.yml` in your repo:
-
-```yaml
-name: Deploy to GitHub Pages
-
-on:
-  push:
-    branches: ['main']
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: 'pages'
-  cancel-in-progress: false
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-      - run: npm ci
-      - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: './dist'
-
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
-```
-
-Then in your repo settings → **Pages** → Source: **GitHub Actions**.
-
-> ⚠️ If using GitHub Actions, change `base` in `vite.config.js` to `'/mindsten-prototype/'` (matching your repo name).
-
----
-
-## 📁 Project Structure
-
-```
-mindsten-prototype/
-├── index.html              # Entry HTML
-├── package.json            # Dependencies & scripts
-├── tsconfig.json           # TypeScript config
-├── vite.config.ts          # Vite + Vitest config
-├── .env.example            # Template for VITE_SUPABASE_* vars
-├── supabase/
-│   ├── migrations/         # SQL schema (0001_init.sql)
-│   ├── seed.sql            # Idempotent seed for 4 reference persons
-│   └── README.md           # Backend setup notes
-└── src/
-    ├── main.tsx            # React entry + BrowserRouter
-    ├── App.tsx             # Routes + phone-frame shell
-    ├── types/              # Person, ThemedRoute, …
-    ├── data/               # PERSONS, ROUTES fixtures (fallback)
-    ├── lib/
-    │   ├── api.ts          # Supabase-first, fixture fallback
-    │   ├── supabase.ts     # Client singleton
-    │   ├── mappers.ts      # DB row → domain type
-    │   └── onboarding.ts   # localStorage flag
-    ├── components/         # Icons, TabBar, ErrorBoundary, StatePanel, …
-    ├── pages/              # One component per route
-    ├── styles/global.css   # Extracted global styles
-    └── __tests__/          # Vitest smoke tests
-```
-
----
-
-## 🇩🇰 About MindSTEN
-
-MindSTEN (from Danish *mindesten* — memorial stone) is designed for the Danish market, starting with iconic sites like Assistens Kirkegård in Copenhagen. The platform serves curious citizens, teachers, museum curators, and tourists.
-
-**Key concepts:**
-- **Grave Scanner** — AI + geolocation identifies who is buried
-- **Tidsvindue (Time Window)** — Curated video experiences from the past
-- **Institutional tools** — Teacher dashboards, museum curator portals
-- **GDPR-first** — Privacy by design, Danish market compliance
+`deploy` · `import-persons` · `add-person` · `era-facts` · `scan-pipeline` · `verify-app`
+— se `.claude/skills/`. `CLAUDE.md` giver overblikket.
 
 ---
 
 *Fordi enhver sten har en historie at fortælle.*
-*(Because every stone has a story to tell.)*

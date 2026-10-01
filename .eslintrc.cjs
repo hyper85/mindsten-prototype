@@ -6,7 +6,8 @@ module.exports = {
     'plugin:@typescript-eslint/recommended',
     'plugin:react-hooks/recommended',
   ],
-  ignorePatterns: ['dist', 'node_modules', '.eslintrc.cjs'],
+  // Edge Functions run on Deno and are checked with `npm run check:functions`.
+  ignorePatterns: ['dist', 'dev-dist', 'node_modules', '.eslintrc.cjs', 'supabase/functions/*/index.ts'],
   parser: '@typescript-eslint/parser',
   plugins: ['react-refresh'],
   rules: {

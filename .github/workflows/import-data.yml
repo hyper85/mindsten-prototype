@@ -1,0 +1,42 @@
+name: Import persons from Wikidata
+
+# Fills the database with people buried in Denmark (Wikidata + Danish Wikipedia).
+# Runs monthly and on demand. Required secrets:
+#   SUPABASE_URL               https://<project-ref>.supabase.co
+#   SUPABASE_SERVICE_ROLE_KEY  Project Settings → API → service_role (never expose to the browser)
+
+on:
+  schedule:
+    - cron: '17 3 1 * *'
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Max persons (blank = all)'
+        required: false
+      dry_run:
+        description: 'Dry run (write nothing)'
+        type: boolean
+        default: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Import
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LIMIT: ${{ inputs.limit }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          args=""
+          [ -n "$LIMIT" ] && args="$args --limit $LIMIT"
+          [ "$DRY_RUN" = "true" ] && args="$args --dry-run"
+          npm run import:wikidata -- $args

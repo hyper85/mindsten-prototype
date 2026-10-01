@@ -1,0 +1,65 @@
+name: Deploy Supabase
+
+# Pushes database migrations + seed and deploys Edge Functions.
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN   personal access token (supabase.com/dashboard/account/tokens)
+#   SUPABASE_PROJECT_REF    the project ref, e.g. abcdefghijklmnopqrst
+#   SUPABASE_DB_PASSWORD    database password chosen when the project was created
+#   One model key for scan-gravestone and era-story:
+#     ANTHROPIC_API_KEY     Claude API directly (console.anthropic.com), or
+#     OPENCODE_API_KEY      OpenCode Zen gateway (opencode.ai) — Claude models via /v1/messages
+#   LLM_MODEL (optional)    model id for the chosen provider
+
+on:
+  push:
+    branches: [main]
+    paths: ['supabase/**', '.github/workflows/supabase-deploy.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: supabase-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check secrets
+        run: |
+          missing=""
+          for v in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD PROJECT_REF; do
+            [ -z "${!v}" ] && missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing secrets:$missing — see .claude/skills/deploy/SKILL.md"
+            exit 1
+          fi
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase link --project-ref "$PROJECT_REF"
+      - name: Push migrations and seed
+        run: supabase db push --include-seed
+      - name: Set function secrets
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+        run: |
+          args=""
+          for v in ANTHROPIC_API_KEY OPENCODE_API_KEY LLM_MODEL; do
+            [ -n "${!v}" ] && args="$args $v=${!v}"
+          done
+          if [ -z "$ANTHROPIC_API_KEY$OPENCODE_API_KEY" ]; then
+            echo "::warning::Neither ANTHROPIC_API_KEY nor OPENCODE_API_KEY is set — scanning and AI stories will return errors."
+          fi
+          if [ -n "$args" ]; then
+            supabase secrets set --project-ref "$PROJECT_REF" $args
+          fi
+      - name: Deploy Edge Functions
+        run: supabase functions deploy --project-ref "$PROJECT_REF" --use-api
