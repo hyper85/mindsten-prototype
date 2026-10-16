@@ -148,6 +148,8 @@ export function buildAroundQuery(
   const radius = num(Math.max(0.1, radiusKm), 2);
   const year = Math.trunc(maxDeathYear);
   const max = Math.max(1, Math.trunc(limit));
+  // Blazegraph runs a named subquery (WITH … AS %top) first and exactly once; the
+  // optimizer hint keeps the join order as written, so the geo lookup comes first.
   return `SELECT ?person ?sitelinks
   (SAMPLE(?personLabel) AS ?name) (SAMPLE(?personDescription) AS ?description)
   (SAMPLE(?death) AS ?deathTime) (SAMPLE(?deathPrec) AS ?deathPrecision)
@@ -158,24 +160,26 @@ export function buildAroundQuery(
   (SAMPLE(?countryCode) AS ?country) (SAMPLE(?cityLabel) AS ?city)
   (GROUP_CONCAT(DISTINCT ?occupation; separator=" ") AS ?occupations)
   (SAMPLE(?dawiki) AS ?dawikiTitle) (SAMPLE(?enwiki) AS ?enwikiTitle)
-WHERE {
-  {
-    SELECT DISTINCT ?person ?place ?placeCoord ?sitelinks WHERE {
-      SERVICE wikibase:around {
-        ?place wdt:P625 ?placeCoord .
-        bd:serviceParam wikibase:center "${point}"^^geo:wktLiteral ;
-                        wikibase:radius "${radius}" .
-      }
-      ?person wdt:P119 ?place ;
-              wdt:P31 wd:Q5 ;
-              wdt:P570 ?deathDate ;
-              wikibase:sitelinks ?sitelinks .
-      FILTER(?sitelinks >= 2)
-      FILTER(YEAR(?deathDate) <= ${year})
+WITH {
+  SELECT DISTINCT ?person ?place ?placeCoord ?sitelinks WHERE {
+    hint:Query hint:optimizer "None" .
+    SERVICE wikibase:around {
+      ?place wdt:P625 ?placeCoord .
+      bd:serviceParam wikibase:center "${point}"^^geo:wktLiteral ;
+                      wikibase:radius "${radius}" .
     }
-    ORDER BY DESC(?sitelinks)
-    LIMIT ${max}
+    ?person wdt:P119 ?place .
+    ?person wdt:P31 wd:Q5 .
+    ?person wdt:P570 ?deathDate .
+    ?person wikibase:sitelinks ?sitelinks .
+    FILTER(?sitelinks >= 2)
+    FILTER(YEAR(?deathDate) <= ${year})
   }
+  ORDER BY DESC(?sitelinks)
+  LIMIT ${max}
+} AS %top
+WHERE {
+  INCLUDE %top .
   ?person p:P570/psv:P570 ?dv .
   ?dv wikibase:timeValue ?death ;
       wikibase:timePrecision ?deathPrec .
