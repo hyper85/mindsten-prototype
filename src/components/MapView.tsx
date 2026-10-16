@@ -1,5 +1,5 @@
 import 'leaflet/dist/leaflet.css';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   AttributionControl,
   CircleMarker,
@@ -7,7 +7,6 @@ import {
   TileLayer,
   Tooltip,
   useMap,
-  useMapEvents,
 } from 'react-leaflet';
 import type { Coords } from '../lib/geo';
 import type { Person } from '../types';
@@ -60,25 +59,30 @@ function Recenter({ center, zoom }: { center: Coords; zoom: number }) {
 }
 
 function BoundsReporter({ onMove }: { onMove?: (b: MapBounds) => void }) {
-  const map = useMapEvents({
-    moveend: () => report(),
-  });
-  const report = () => {
-    if (!onMove) return;
-    const b = map.getBounds();
-    const c = map.getCenter();
-    onMove({
-      north: b.getNorth(),
-      south: b.getSouth(),
-      east: b.getEast(),
-      west: b.getWest(),
-      center: { lat: c.lat, lng: c.lng },
-    });
-  };
+  const map = useMap();
+  // Kept in a ref so the Leaflet listener is attached once. A listener re-attached on
+  // every render is detached exactly while <Recenter> calls setView (React runs effect
+  // cleanups before effects), so the resulting moveend would be lost.
+  const onMoveRef = useRef(onMove);
+  onMoveRef.current = onMove;
   useEffect(() => {
+    const report = () => {
+      const b = map.getBounds();
+      const c = map.getCenter();
+      onMoveRef.current?.({
+        north: b.getNorth(),
+        south: b.getSouth(),
+        east: b.getEast(),
+        west: b.getWest(),
+        center: { lat: c.lat, lng: c.lng },
+      });
+    };
+    map.on('moveend', report);
     report();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return () => {
+      map.off('moveend', report);
+    };
+  }, [map]);
   return null;
 }
 
