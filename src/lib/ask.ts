@@ -1,10 +1,8 @@
 import type { Person, PersonCategory } from '../types';
 
-/** Danish genitive: "H.C. Andersen" → "H.C. Andersens", "Thomas" → "Thomas'". */
-export function genitive(name: string): string {
-  const n = name.trim();
-  return /[sxz]$/i.test(n) ? `${n}'` : `${n}s`;
-}
+import { genitive } from '../../supabase/functions/_shared/era.ts';
+
+export { genitive };
 
 const CATEGORY_QUESTION: Record<PersonCategory, (name: string) => string> = {
   writers: (n) => `Hvilke værker er ${n} mest kendt for?`,

@@ -1,4 +1,8 @@
-import { buildEraSnapshot, periodFor } from '../../supabase/functions/_shared/era.ts';
+import {
+  deriveEraFields,
+  periodFor,
+  type EraRegion,
+} from '../../supabase/functions/_shared/era.ts';
 import type { CategoryFilter, Person, PersonCategory } from '../types';
 
 const MONTHS = [
@@ -58,20 +62,13 @@ export function ageAtDeath(
 }
 
 /** Derives era name/years/title from a lifespan when the DB has none. */
-export function deriveEra(birthYear: number | null, deathYear: number | null) {
-  if (!birthYear && !deathYear) {
-    return { era: 'Ukendt periode', eraYears: '', timeWindowTitle: 'Danmark i fortiden' };
-  }
-  const from = birthYear ?? (deathYear as number) - 60;
-  const to = deathYear ?? from + 60;
-  const { period } = buildEraSnapshot(from, to);
-  const name = period.name.replace(/^(Det|Den) /, (m) => m.toLowerCase());
-  const midpoint = Math.floor((from + to) / 2);
-  return {
-    era: period.name,
-    eraYears: `${Math.floor(midpoint / 100) * 100}-tallet`,
-    timeWindowTitle: `Danmark i ${name}`,
-  };
+export function deriveEra(
+  birthYear: number | null,
+  deathYear: number | null,
+  region: EraRegion = 'dk',
+  name?: string,
+) {
+  return deriveEraFields(birthYear, deathYear, region, name);
 }
 
 export { periodFor };
