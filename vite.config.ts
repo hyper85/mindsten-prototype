@@ -2,6 +2,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { execSync } from 'node:child_process';
 
 // Vercel serves from the domain root. Set VITE_BASE (e.g. "/mindsten-prototype/")
 // only when hosting under a sub-path.
@@ -15,8 +16,24 @@ const siteUrl = (
     : '')
 ).replace(/\/+$/, '');
 
+// Shown under Profil → Om so a visitor (and we) can tell which build a phone is running.
+function buildVersion(): string {
+  let sha = process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? '';
+  if (!sha) {
+    try {
+      sha = execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+        .toString()
+        .trim();
+    } catch {
+      sha = 'dev';
+    }
+  }
+  return `${new Date().toISOString().slice(0, 10)} · ${sha.slice(0, 7)}`;
+}
+
 export default defineConfig({
   base,
+  define: { __APP_VERSION__: JSON.stringify(buildVersion()) },
   plugins: [
     react(),
     {
