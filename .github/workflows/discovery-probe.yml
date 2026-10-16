@@ -1,0 +1,67 @@
+name: Discovery probe
+
+# Runs the discover-graves Wikidata query for a position from a runner that can reach
+# query.wikidata.org and prints the result. Writes nothing; needs no secrets.
+
+on:
+  push:
+    paths:
+      - scripts/probe-points.txt
+      - scripts/discover-probe.ts
+      - supabase/functions/_shared/wikidata.ts
+      - .github/workflows/discovery-probe.yml
+  workflow_dispatch:
+    inputs:
+      lat:
+        description: 'Latitude (e.g. 47.4612)'
+        required: true
+      lng:
+        description: 'Longitude (e.g. 9.0453)'
+        required: true
+      radius_km:
+        description: 'Radius in km'
+        default: '10'
+      budget_ms:
+        description: 'Timeout in ms (discover-graves uses 20000)'
+        default: '20000'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Probe (manual position)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          LAT: ${{ inputs.lat }}
+          LNG: ${{ inputs.lng }}
+          RADIUS: ${{ inputs.radius_km }}
+          BUDGET: ${{ inputs.budget_ms }}
+        run: |
+          for v in "$LAT" "$LNG" "$RADIUS" "$BUDGET"; do
+            if ! [[ "$v" =~ ^-?[0-9]+(\.[0-9]+)?$ ]]; then
+              echo "::error::inputs must be numbers"
+              exit 1
+            fi
+          done
+          npm run probe:discovery -- --lat "$LAT" --lng "$LNG" --radius "$RADIUS" --budget "$BUDGET"
+      - name: Probe (scripts/probe-points.txt)
+        if: github.event_name == 'push'
+        run: |
+          status=0
+          while read -r lat lng radius budget rest; do
+            case "$lat" in ''|\#*) continue ;; esac
+            echo "::group::$lat $lng ($rest)"
+            npm run probe:discovery -- --lat "$lat" --lng "$lng" --radius "$radius" --budget "$budget" || status=1
+            echo "::endgroup::"
+          done < scripts/probe-points.txt
+          exit $status

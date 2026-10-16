@@ -13,9 +13,20 @@ Two paths fill the `persons` table; both keep the 10-year rule and never overwri
   (`buildAroundQuery` in `_shared/wikidata.ts`) for notable humans (≥ 2 sitelinks) with a burial
   place within 10 km, ordered by sitelinks. New persons are INSERTED with the Wikidata label and
   description only (`enriched_at` null, `bio_lang` null); cemeteries are upserted with
-  `country_code`. Results are cached per 0.1° grid cell in `discovery_cells` for 30 days, so a
-  fresh cell costs one DB read. The Home screen and the map call it; `scan-gravestone` calls
-  `discoverAround()` before matching when the scan has coordinates.
+  `country_code`. Results are cached per 0.1° grid cell in `discovery_cells` for 30 days (one
+  day when nothing was found), so a fresh cell costs one DB read. The Home screen and the map
+  call it; `scan-gravestone` calls `discoverAround()` before matching when the scan has
+  coordinates.
+- The query is a Blazegraph named subquery (`WITH … AS %top`, geo lookup first via
+  `hint:Query hint:optimizer "None"`) that picks the top-N persons before joining labels,
+  images and Wikipedia titles. Keep that shape: joining everything first took > 20 s in
+  Copenhagen, and a plain sub-SELECT timed out everywhere.
+- **Debugging "no graves here"**: the Claude sandbox cannot reach query.wikidata.org. Run the
+  real query from a GitHub runner instead — the "Discovery probe" workflow (manual dispatch with
+  lat/lng, or automatically on a push that changes `scripts/probe-points.txt`,
+  `scripts/discover-probe.ts` or `_shared/wikidata.ts`). Locally:
+  `npm run probe:discovery -- --lat 47.46 --lng 9.05`. It prints status, timing, the first raw
+  row and the parsed candidates; it writes nothing.
 - `supabase/functions/enrich-person` (`POST {personId}`): the first time a discovered person is
   opened, fetches the Wikipedia intro in the first language that has an article
   (`wikipediaLanguagesFor(country)`: da → en → the country's languages), stores `bio_lang`,

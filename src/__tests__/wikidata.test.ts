@@ -190,9 +190,9 @@ describe('buildAroundQuery', () => {
     const q = buildAroundQuery(46.4756, 6.8437, 10, 2016, 80);
     expect(q).toContain('"Point(6.8437 46.4756)"^^geo:wktLiteral');
     expect(q).toContain('wikibase:radius "10"');
-    expect(q).toContain('FILTER(YEAR(?death) <= 2016)');
+    expect(q).toContain('FILTER(YEAR(?deathDate) <= 2016)');
     expect(q).toContain('FILTER(?sitelinks >= 2)');
-    expect(q).toContain('p:P119 ?st');
+    expect(q).toContain('wdt:P119 ?place');
     expect(q).toContain('GROUP BY ?person ?sitelinks');
     expect(q.trimEnd().endsWith('LIMIT 80')).toBe(true);
   });
