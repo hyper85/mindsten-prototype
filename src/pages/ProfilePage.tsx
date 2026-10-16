@@ -1,10 +1,11 @@
-import { Download, Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { Download, Info, Plus, RefreshCw, RotateCcw, Trash2 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { LargeTitle, Page, Section } from '../components/Layout';
 import { List, Row } from '../components/List';
 import { PersonRow } from '../components/PersonRow';
 import { getPersonsByIds } from '../lib/api';
 import { resetOnboarding } from '../lib/onboarding';
+import { APP_VERSION, forceUpdate } from '../lib/pwa';
 import {
   clearLocalData,
   exportLocalData,
@@ -180,6 +181,20 @@ export function ProfilePage() {
             }
             title="Om MindSTEN, kilder og privatliv"
             to="/about"
+          />
+          <Row
+            leading={
+              <SettingsIcon color="#2a9d8f">
+                <RefreshCw />
+              </SettingsIcon>
+            }
+            title="Hent nyeste version"
+            subtitle={`Version ${APP_VERSION}`}
+            onClick={() => {
+              showToast('Henter nyeste version…');
+              void forceUpdate();
+            }}
+            chevron
           />
           <Row
             leading={

@@ -80,3 +80,8 @@ secrets of the same name; deleting a GitHub secret does not unset it in Supabase
   must allow `camera=(self)`.
 - A Claude cloud session can't reach `api.supabase.com` / `api.vercel.com` unless the environment's
   network policy allows them — deploy through GitHub Actions instead.
+- A phone still shows an old build after a green Vercel deploy → the installed PWA is serving
+  its cache. Profil → Om shows `Version <date> · <commit>` (compare with `main`); the row
+  "Hent nyeste version" drops every service worker and cache and reloads from the server
+  (`forceUpdate()` in `src/lib/pwa.ts`). Otherwise: open the site in a normal browser tab and
+  reload twice, or clear the site's data in the browser settings.
