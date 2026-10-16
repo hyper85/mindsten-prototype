@@ -60,7 +60,7 @@ export function DeskIntro() {
           <span>
             <MapPin size={18} />
           </span>
-          Find kendte danskeres grave
+          Find kendte personers grave – i Danmark og i udlandet
         </li>
       </ul>
       {url && (

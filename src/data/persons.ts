@@ -72,6 +72,10 @@ function curated(input: CuratedInput): Person {
     imageCredit: null,
     wikidataId: null,
     wikipediaUrl,
+    countryCode: 'DK',
+    bioLang: 'da',
+    enriched: true,
+    region: 'dk',
   };
 }
 

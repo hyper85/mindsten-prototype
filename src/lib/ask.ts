@@ -1,10 +1,8 @@
 import type { Person, PersonCategory } from '../types';
 
-/** Danish genitive: "H.C. Andersen" → "H.C. Andersens", "Thomas" → "Thomas'". */
-export function genitive(name: string): string {
-  const n = name.trim();
-  return /[sxz]$/i.test(n) ? `${n}'` : `${n}s`;
-}
+import { genitive } from '../../supabase/functions/_shared/era.ts';
+
+export { genitive };
 
 const CATEGORY_QUESTION: Record<PersonCategory, (name: string) => string> = {
   writers: (n) => `Hvilke værker er ${n} mest kendt for?`,
@@ -22,16 +20,29 @@ const CATEGORY_QUESTION: Record<PersonCategory, (name: string) => string> = {
 
 /** Ready-made questions shown on the person page and in the chat. */
 export function suggestedQuestions(person: Person): string[] {
-  const questions = [
-    `Hvorfor er ${person.name} kendt?`,
-    CATEGORY_QUESTION[person.category](person.name),
-  ];
+  const world = person.region === 'world';
+  const questions: string[] = [];
+  // A bio in another language: offer the Danish summary first.
+  if (person.bioLang && person.bioLang !== 'da') {
+    questions.push(`Fortæl kort om ${person.name} på dansk`);
+  }
+  questions.push(`Hvorfor er ${person.name} kendt?`);
+  const categoryQuestion = CATEGORY_QUESTION[person.category](person.name);
+  questions.push(
+    world && (person.category === 'royals' || person.category === 'politics')
+      ? `Hvad betød ${person.name} for sit land?`
+      : categoryQuestion,
+  );
   if (person.era && person.era !== 'Ukendt periode') {
     const era = person.era.replace(/^(Det|Den) /, (m) => m.toLowerCase());
     questions.push(`Hvordan var hverdagen i ${era}?`);
   }
   if (person.birthYear || person.deathYear) {
-    questions.push(`Hvad skete der i Danmark i ${genitive(person.name)} levetid?`);
+    questions.push(
+      world
+        ? `Hvad skete der i verden i ${genitive(person.name)} levetid?`
+        : `Hvad skete der i Danmark i ${genitive(person.name)} levetid?`,
+    );
   }
   return questions;
 }

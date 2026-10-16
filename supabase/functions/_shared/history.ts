@@ -95,7 +95,7 @@ export const MONARCHS: Monarch[] = [
   { name: 'Frederik 10.', from: 2024, to: null },
 ];
 
-export const HISTORY_EVENTS: HistoryEvent[] = [
+const DANISH_EVENTS: HistoryEvent[] = [
   {
     year: 965,
     scope: 'dk',
@@ -369,6 +369,109 @@ export const HISTORY_EVENTS: HistoryEvent[] = [
     detail: 'Dronning Margrethe 2. abdicerer den 14. januar.',
   },
 ];
+
+// World events shown to visitors abroad (and mixed into Danish time windows). Same rules:
+// only well-established facts, Danish text, "ca." for estimates.
+const WORLD_EVENTS: HistoryEvent[] = [
+  {
+    year: 1066,
+    scope: 'world',
+    title: 'Slaget ved Hastings',
+    detail: 'Vilhelm Erobreren vinder England.',
+  },
+  { year: 1096, scope: 'world', title: 'Det første korstog begynder' },
+  {
+    year: 1215,
+    scope: 'world',
+    title: 'Magna Carta',
+    detail: 'Den engelske konge må dele magten med adelen.',
+  },
+  {
+    year: 1347,
+    scope: 'world',
+    title: 'Den sorte død når Europa',
+    detail: 'Pesten dræber ca. en tredjedel af Europas befolkning.',
+  },
+  {
+    year: 1453,
+    scope: 'world',
+    title: 'Konstantinopel falder',
+    detail: 'Osmannerne erobrer byen; Det Byzantinske Rige går under.',
+  },
+  {
+    year: 1543,
+    scope: 'world',
+    title: 'Kopernikus sætter Solen i centrum',
+    detail: '"Om himmellegemernes kredsløb" udgives.',
+  },
+  { year: 1588, scope: 'world', title: 'Den spanske armada besejres' },
+  { year: 1618, scope: 'world', title: 'Trediveårskrigen begynder' },
+  { year: 1648, scope: 'world', title: 'Den Westfalske Fred', detail: 'Trediveårskrigen slutter.' },
+  {
+    year: 1687,
+    scope: 'world',
+    title: 'Newtons Principia udgives',
+    detail: 'Tyngdeloven og bevægelseslovene.',
+  },
+  { year: 1804, scope: 'world', title: 'Napoleon kroner sig til kejser' },
+  {
+    year: 1815,
+    scope: 'world',
+    title: 'Slaget ved Waterloo',
+    detail: 'Napoleon besejres endeligt.',
+  },
+  {
+    year: 1825,
+    scope: 'world',
+    title: 'Den første offentlige jernbane',
+    detail: 'Stockton–Darlington i England.',
+  },
+  { year: 1848, scope: 'world', title: 'Revolutionsåret i Europa' },
+  { year: 1859, scope: 'world', title: 'Darwin udgiver "Arternes oprindelse"' },
+  { year: 1861, scope: 'world', title: 'Den amerikanske borgerkrig begynder' },
+  { year: 1869, scope: 'world', title: 'Suezkanalen åbner' },
+  {
+    year: 1895,
+    scope: 'world',
+    title: 'Filmen fødes',
+    detail: 'Brødrene Lumière viser levende billeder i Paris.',
+  },
+  { year: 1896, scope: 'world', title: 'De første moderne olympiske lege', detail: 'Athen.' },
+  { year: 1912, scope: 'world', title: 'Titanic forliser' },
+  { year: 1917, scope: 'world', title: 'Den russiske revolution' },
+  {
+    year: 1929,
+    scope: 'world',
+    title: 'Børskrakket på Wall Street',
+    detail: "Verdenskrisen i 1930'erne begynder.",
+  },
+  {
+    year: 1945,
+    scope: 'world',
+    title: 'Anden Verdenskrig slutter',
+    detail: 'FN grundlægges samme år.',
+  },
+  { year: 1947, scope: 'world', title: 'Indien bliver selvstændigt' },
+  {
+    year: 1957,
+    scope: 'world',
+    title: 'Sputnik',
+    detail: 'Den første satellit sendes i kredsløb.',
+  },
+  {
+    year: 1961,
+    scope: 'world',
+    title: 'Det første menneske i rummet',
+    detail: 'Jurij Gagarin. Samme år bygges Berlinmuren.',
+  },
+  { year: 1991, scope: 'world', title: 'Sovjetunionen opløses' },
+  { year: 2001, scope: 'world', title: 'Terrorangrebet den 11. september' },
+];
+
+/** All events, sorted by year (Danish events before world events in the same year). */
+export const HISTORY_EVENTS: HistoryEvent[] = [...DANISH_EVENTS, ...WORLD_EVENTS].sort(
+  (a, b) => a.year - b.year,
+);
 
 export const ERA_PERIODS: EraPeriod[] = [
   {

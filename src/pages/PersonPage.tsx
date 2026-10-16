@@ -23,7 +23,7 @@ import { List, Row, ValueRow } from '../components/List';
 import { EmptyState, LoadingState } from '../components/StatePanel';
 import { getPersonById } from '../lib/api';
 import { suggestedQuestions } from '../lib/ask';
-import { ageAtDeath, CATEGORY_META } from '../lib/format';
+import { ageAtDeath, CATEGORY_META, countryName, languageName } from '../lib/format';
 import { directionsUrl } from '../lib/geo';
 import { isFavorite, recordVisit, toggleFavorite } from '../lib/storage';
 import { showToast } from '../lib/toast';
@@ -108,7 +108,7 @@ export function PersonPage() {
 
   const era = useMemo(() => {
     if (!person?.birthYear || !person.deathYear) return null;
-    return buildEraSnapshot(person.birthYear, person.deathYear);
+    return buildEraSnapshot(person.birthYear, person.deathYear, person.region);
   }, [person]);
 
   if (status === 'loading') {
@@ -140,12 +140,19 @@ export function PersonPage() {
 
   const age = ageAtDeath(person.birthDate, person.deathDate, person.birthYear, person.deathYear);
   const hasLocation = person.lat !== null && person.lng !== null;
+  const world = person.region === 'world';
+  const highlightScope = world ? 'world' : 'dk';
   const highlights = era
     ? era.events
-        .filter((e) => e.scope === 'dk' && e.age > 0 && e.year < (person.deathYear ?? 0))
+        .filter((e) => e.scope === highlightScope && e.age > 0 && e.year < (person.deathYear ?? 0))
         .slice(0, 3)
     : [];
   const bioIsLong = Boolean(person.fullBio && person.fullBio !== person.shortBio);
+  const foreignBio = Boolean(person.bioLang && person.bioLang !== 'da');
+  // Where the grave is: cemetery only at home, cemetery + town + country abroad.
+  const burialPlace = world
+    ? [person.cemetery, person.city, countryName(person.countryCode)].filter(Boolean).join(', ')
+    : person.cemetery;
 
   const share = async () => {
     const url = window.location.href;
@@ -230,14 +237,31 @@ export function PersonPage() {
           </button>
         </div>
 
-        {person.shortBio && (
-          <Section title="Om personen">
+        {(person.shortBio || !person.enriched) && (
+          <Section
+            title="Om personen"
+            footer={
+              person.shortBio && foreignBio
+                ? `Biografi fra ${languageName(person.bioLang)} Wikipedia – AI-guiden svarer på dansk.`
+                : undefined
+            }
+          >
             <div className="card">
-              <p className="body-text">{expanded ? person.fullBio : person.shortBio}</p>
-              {bioIsLong && (
-                <button type="button" className="link-btn" onClick={() => setExpanded(!expanded)}>
-                  {expanded ? 'Vis mindre' : 'Læs mere'}
-                </button>
+              {person.shortBio ? (
+                <>
+                  <p className="body-text">{expanded ? person.fullBio : person.shortBio}</p>
+                  {bioIsLong && (
+                    <button
+                      type="button"
+                      className="link-btn"
+                      onClick={() => setExpanded(!expanded)}
+                    >
+                      {expanded ? 'Vis mindre' : 'Læs mere'}
+                    </button>
+                  )}
+                </>
+              ) : (
+                <p className="body-text muted">Biografien hentes, når der er forbindelse.</p>
               )}
             </div>
           </Section>
@@ -328,7 +352,7 @@ export function PersonPage() {
             {person.cemetery && (
               <Row
                 title={<span className="row-label">Begravet</span>}
-                trailing={<span style={{ color: 'var(--text)' }}>{person.cemetery}</span>}
+                trailing={<span style={{ color: 'var(--text)' }}>{burialPlace}</span>}
                 to={person.cemeteryId ? `/cemetery/${person.cemeteryId}` : undefined}
               />
             )}

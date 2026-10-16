@@ -25,6 +25,18 @@ const PERIOD_COLORS: Record<string, string> = {
   verdenskrige: '#7c8691',
   velfaerd: '#4f86b8',
   digital: '#6c7fd1',
+  // Centuries — the periods of a life outside Denmark.
+  c1000: '#8c7a66',
+  c1100: '#9a7b5b',
+  c1200: '#7b6a9a',
+  c1300: '#6f7f94',
+  c1400: '#8d6e5f',
+  c1500: '#a0644f',
+  c1600: '#b08a3e',
+  c1700: '#9c8d5a',
+  c1800: '#d4a63e',
+  c1900: '#5c8a6e',
+  c2000: '#6c7fd1',
 };
 
 // Darker variants for the small period labels (WCAG AA on white).
@@ -71,7 +83,7 @@ export function TimeWindowPage() {
   // Only with both years known — a guessed lifespan would present invented facts.
   const snapshot = useMemo(() => {
     if (!person?.birthYear || !person.deathYear) return null;
-    return buildEraSnapshot(person.birthYear, person.deathYear);
+    return buildEraSnapshot(person.birthYear, person.deathYear, person.region);
   }, [person]);
 
   const loadStory = async () => {
@@ -119,8 +131,13 @@ export function TimeWindowPage() {
     );
   }
 
-  const events = snapshot.events.filter((e) => scope === 'all' || e.scope === 'dk');
+  // Outside Denmark the snapshot holds world events only: no monarchs, population or everyday life.
+  const world = snapshot.region === 'world';
+  const events = snapshot.events.filter((e) => world || scope === 'all' || e.scope === 'dk');
   const { populationAtBirth: popBirth, populationAtDeath: popDeath } = snapshot;
+  const summary =
+    snapshot.period.summary ||
+    `${person.name} levede i ${snapshot.period.name}. Her er de store begivenheder i verden i den tid.`;
 
   return (
     <>
@@ -165,7 +182,7 @@ export function TimeWindowPage() {
         </header>
 
         <div className="card">
-          <p className="body-text">{snapshot.period.summary}</p>
+          <p className="body-text">{summary}</p>
         </div>
 
         {(isSupabaseConfigured || story) && (
@@ -205,7 +222,9 @@ export function TimeWindowPage() {
                       ? 'Det lykkedes ikke. Prøv igen om lidt.'
                       : storyState === 'loading' && slow
                         ? 'Det tager lidt længere end normalt – vent et øjeblik'
-                        : 'En kort fortælling om livet i Danmark dengang'}
+                        : world
+                          ? 'En kort fortælling om verden dengang'
+                          : 'En kort fortælling om livet i Danmark dengang'}
                   </span>
                 </span>
               </button>
@@ -213,7 +232,7 @@ export function TimeWindowPage() {
           </Section>
         )}
 
-        {(popBirth || popDeath) && (
+        {!world && (popBirth || popDeath) && (
           <Section title="Danmark i tal" footer="Befolkningstal er afrundede skøn (ca.).">
             <div className="stats">
               {popBirth && (
@@ -242,7 +261,7 @@ export function TimeWindowPage() {
           </Section>
         )}
 
-        {snapshot.monarchs.length > 0 && (
+        {!world && snapshot.monarchs.length > 0 && (
           <Section
             title={
               snapshot.monarchs.length === 1
@@ -280,17 +299,19 @@ export function TimeWindowPage() {
         )}
 
         <Section title={`Mens ${person.name} levede`}>
-          <div style={{ marginBottom: 12 }}>
-            <SegmentedControl
-              label="Vis begivenheder"
-              value={scope}
-              onChange={setScope}
-              options={[
-                { value: 'all', label: 'Danmark & verden' },
-                { value: 'dk', label: 'Kun Danmark' },
-              ]}
-            />
-          </div>
+          {!world && (
+            <div style={{ marginBottom: 12 }}>
+              <SegmentedControl
+                label="Vis begivenheder"
+                value={scope}
+                onChange={setScope}
+                options={[
+                  { value: 'all', label: 'Danmark & verden' },
+                  { value: 'dk', label: 'Kun Danmark' },
+                ]}
+              />
+            </div>
+          )}
           <div className="card">
             {events.length === 0 ? (
               <p className="muted">Ingen registrerede begivenheder i perioden endnu.</p>
@@ -314,23 +335,25 @@ export function TimeWindowPage() {
           </div>
         </Section>
 
-        <Section title="Hverdagen">
-          <div className="stack-sm">
-            {snapshot.periods.map((p) => (
-              <div key={p.id} className="card">
-                <div className="eyebrow" style={{ color: PERIOD_INK[p.id] ?? 'var(--text-2)' }}>
-                  {p.name} · {Math.max(p.from, snapshot.birthYear)}–
-                  {Math.min(p.to, snapshot.deathYear)}
+        {!world && (
+          <Section title="Hverdagen">
+            <div className="stack-sm">
+              {snapshot.periods.map((p) => (
+                <div key={p.id} className="card">
+                  <div className="eyebrow" style={{ color: PERIOD_INK[p.id] ?? 'var(--text-2)' }}>
+                    {p.name} · {Math.max(p.from, snapshot.birthYear)}–
+                    {Math.min(p.to, snapshot.deathYear)}
+                  </div>
+                  <ul className="everyday">
+                    {p.everyday.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
                 </div>
-                <ul className="everyday">
-                  {p.everyday.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </Section>
+              ))}
+            </div>
+          </Section>
+        )}
       </Page>
     </>
   );

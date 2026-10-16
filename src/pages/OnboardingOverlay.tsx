@@ -29,7 +29,7 @@ const FEATURES = [
     icon: MapPin,
     color: 'var(--blue)',
     title: 'Find kendte grave',
-    text: 'Opdag hvor kendte danskere ligger begravet, og følg temaruter.',
+    text: 'Opdag hvor kendte personer ligger begravet – i Danmark og i udlandet – og følg temaruter.',
   },
 ];
 

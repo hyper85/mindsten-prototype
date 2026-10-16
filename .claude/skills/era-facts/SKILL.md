@@ -8,9 +8,11 @@ description: Extend or correct the curated Danish history dataset behind the Tid
 - **Data**: `supabase/functions/_shared/history.ts` — `MONARCHS`, `HISTORY_EVENTS`,
   `ERA_PERIODS` (with `everyday` facts), `POPULATION`. Dependency-free; imported by both the
   web app (Vite) and the `era-story` Edge Function (Deno) — keep `.ts` import extensions.
-- **Engine**: `supabase/functions/_shared/era.ts` — `buildEraSnapshot(birth, death)` returns
-  the period, monarchs, events with the person's age, population at birth/death;
-  `eraSnapshotToPromptContext()` turns it into grounding text for Claude.
+- **Engine**: `supabase/functions/_shared/era.ts` — `buildEraSnapshot(birth, death, region)` returns
+  the period, monarchs, events with the person's age, population at birth/death; with region
+  `'world'` (persons buried outside Denmark) periods are centuries, only world-scope events are
+  included and monarchs/population are empty. `eraSnapshotToPromptContext()` turns it into
+  grounding text for the model; `deriveEraFields()` gives the stored era labels for both regions.
 - **UI**: `src/pages/TimeWindowPage.tsx` (full view) and the highlights on `PersonPage.tsx`.
 - **AI story**: `supabase/functions/era-story/index.ts` — system prompt + JSON schema; results
   cached in `era_stories` (delete rows to regenerate after prompt changes).
@@ -19,7 +21,10 @@ description: Extend or correct the curated Danish history dataset behind the Tid
 
 1. Only well-established facts. One sentence title, optional one-sentence `detail`.
    `scope: 'dk'` for Danish history, `'world'` sparingly (major world events only).
-2. Keep `HISTORY_EVENTS` sorted by year and `MONARCHS` sorted by `from` — tests enforce it.
+2. Danish events go in `DANISH_EVENTS`, world events in `WORLD_EVENTS`; `HISTORY_EVENTS` is the
+   sorted union (tests check it). Keep `MONARCHS` sorted by `from`.
+   World events are what visitors abroad see (region `'world'`), so keep that list meaningful
+   across all centuries.
 3. Approximate numbers are written with "ca." and treated as estimates in the UI.
 4. Run `npm test` and `npm run check:functions` (Deno) — the shared files are type-checked in both.
 

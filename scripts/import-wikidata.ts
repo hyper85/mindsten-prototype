@@ -18,8 +18,17 @@
 // See .claude/skills/import-persons/SKILL.md.
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { deriveEra, formatDanishDate } from '../src/lib/format';
-import type { PersonCategory } from '../src/types';
+import { deriveEra } from '../src/lib/format';
+import {
+  categorize,
+  diedLongEnoughAgo,
+  displayDate,
+  firstSentences,
+  isoDate,
+  parseWikidataTime,
+  professionFrom,
+  type WdTime,
+} from '../supabase/functions/_shared/wikidata.ts';
 
 const USER_AGENT = 'MindSTEN/1.0 (https://github.com/hyper85/mindsten-prototype; data import)';
 const SPARQL_URL = 'https://query.wikidata.org/sparql';
@@ -49,10 +58,6 @@ const CUTOFF = isoDate(
   TODAY.getUTCDate(),
 );
 const MAX_DEATH_YEAR = TODAY.getUTCFullYear() - MIN_YEARS_DEAD;
-
-function isoDate(year: number, month: number, day: number): string {
-  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-}
 
 // ---------------------------------------------------------------------------
 // HTTP helpers
@@ -234,49 +239,10 @@ function claimIds(e: WdEntity, prop: string): string[] {
     .filter((v): v is string => Boolean(v));
 }
 
-interface WdTime {
-  /** ISO date, only when the precision is a day. */
-  iso: string | null;
-  year: number | null;
-  month: number;
-  day: number;
-  /** Wikidata precision: 11 day, 10 month, 9 year, 8 decade, 7 century, … */
-  precision: number;
-}
-
 /** Wikidata time → ISO date (only when precision is day) + year. */
 function parseTime(e: WdEntity, prop: string): WdTime {
   const v = claimValues(e, prop)[0] as { time?: string; precision?: number } | undefined;
-  const m = v?.time ? /^([+-])(\d+)-(\d{2})-(\d{2})/.exec(v.time) : null;
-  if (!m) return { iso: null, year: null, month: 0, day: 0, precision: 0 };
-  const year = Number(m[2]) * (m[1] === '-' ? -1 : 1);
-  const month = Number(m[3]);
-  const day = Number(m[4]);
-  // A "day" value without month/day is really coarser.
-  const precision = Math.min(v?.precision ?? 0, day > 0 ? 11 : month > 0 ? 10 : 9);
-  const iso = precision >= 11 && year > 0 ? isoDate(year, month, day) : null;
-  return { iso, year, month, day, precision };
-}
-
-/**
- * Databeskyttelsesloven § 2, stk. 5: true only when the person certainly died at least
- * MIN_YEARS_DEAD years ago, i.e. the latest date the Wikidata value allows is ≤ CUTOFF.
- * Day: the date; month: its last day; year/decade/century: the last day of the last year;
- * anything coarser is skipped.
- */
-function diedLongEnoughAgo(t: WdTime): boolean {
-  if (t.year === null) return false;
-  const offset: Record<number, number> = { 11: 0, 10: 0, 9: 0, 8: 9, 7: 99 };
-  if (!(t.precision in offset)) return false; // coarser than a century
-  const lastYear = t.year + offset[t.precision];
-  if (lastYear < 1) return true;
-  const latest =
-    t.precision === 11
-      ? isoDate(t.year, t.month, t.day)
-      : t.precision === 10
-        ? isoDate(t.year, t.month, new Date(Date.UTC(t.year, t.month, 0)).getUTCDate())
-        : isoDate(lastYear, 12, 31);
-  return latest <= CUTOFF;
+  return parseWikidataTime(v?.time, v?.precision);
 }
 
 function coordOf(e: WdEntity | undefined): { lat: number; lng: number } | null {
@@ -316,109 +282,8 @@ async function fetchExtracts(titles: string[]): Promise<Map<string, string>> {
   return out;
 }
 
-// ---------------------------------------------------------------------------
-// Categorisation
-// ---------------------------------------------------------------------------
-
-const KEYWORDS: Array<[PersonCategory, RegExp]> = [
-  ['royals', /\b(konge|dronning|prins|prinsesse|kronprins|regent|hertug)/i],
-  ['naval', /\b(admiral|søofficer|officer|general|oberst|kaptajn|militær|søhelt)/i],
-  [
-    'politics',
-    /\b(politiker|minister|statsminister|borgmester|diplomat|folketingsmedlem|dommer|jurist|embedsmand)/i,
-  ],
-  ['thinkers', /\b(filosof|teolog|præst|biskop|salmedigter|missionær|provst)/i],
-  [
-    'science',
-    /\b(fysiker|kemiker|matematiker|astronom|læge|biolog|botaniker|zoolog|videnskabs|forsker|ingeniør|opfinder|historiker|sprogforsker|arkæolog|geolog)/i,
-  ],
-  ['music', /\b(komponist|musiker|sanger|sangerinde|pianist|violinist|dirigent|organist|jazz)/i],
-  [
-    'stage',
-    /\b(skuespiller|skuespillerinde|instruktør|filminstruktør|danser|balletdanser|tv-vært|komiker|revy|manuskript)/i,
-  ],
-  ['art', /\b(maler|billedhugger|arkitekt|kunstner|fotograf|tegner|grafiker|designer|keramiker)/i],
-  [
-    'writers',
-    /\b(forfatter|digter|romanforfatter|dramatiker|journalist|skribent|lyriker|redaktør)/i,
-  ],
-  [
-    'sports',
-    /\b(fodbold|cykelrytter|bokser|atlet|svømmer|roer|sejler|bryder|håndbold|badminton|idræt)/i,
-  ],
-];
-
-const OCCUPATIONS: Record<string, PersonCategory> = {
-  Q116: 'royals',
-  Q12097: 'royals',
-  Q47064: 'naval',
-  Q189290: 'naval',
-  Q82955: 'politics',
-  Q193391: 'politics',
-  Q16533: 'politics',
-  Q4964182: 'thinkers',
-  Q1234713: 'thinkers',
-  Q152002: 'thinkers',
-  Q901: 'science',
-  Q169470: 'science',
-  Q593644: 'science',
-  Q170790: 'science',
-  Q11063: 'science',
-  Q864503: 'science',
-  Q39631: 'science',
-  Q201788: 'science',
-  Q205375: 'science',
-  Q81096: 'science',
-  Q36834: 'music',
-  Q639669: 'music',
-  Q177220: 'music',
-  Q158852: 'music',
-  Q486748: 'music',
-  Q33999: 'stage',
-  Q10800557: 'stage',
-  Q2526255: 'stage',
-  Q5716684: 'stage',
-  Q1028181: 'art',
-  Q1281618: 'art',
-  Q42973: 'art',
-  Q33231: 'art',
-  Q483501: 'art',
-  Q36180: 'writers',
-  Q49757: 'writers',
-  Q6625963: 'writers',
-  Q214917: 'writers',
-  Q1930187: 'writers',
-  Q2066131: 'sports',
-  Q937857: 'sports',
-  Q2309784: 'sports',
-};
-
-function categorize(description: string | null, occupations: string[]): PersonCategory {
-  if (description) {
-    for (const [cat, re] of KEYWORDS) if (re.test(description)) return cat;
-  }
-  for (const occ of occupations) {
-    const cat = OCCUPATIONS[occ];
-    if (cat) return cat;
-  }
-  return 'other';
-}
-
-function professionFrom(description: string | null): string {
-  if (!description) return '';
-  const cleaned = description
-    .replace(/\s*\([^)]*\)\s*/g, ' ')
-    .replace(/^(dansk|danske|dansk-norsk|norsk|tysk|svensk|amerikansk)\s+/i, '')
-    .trim();
-  return cleaned ? cleaned.charAt(0).toUpperCase() + cleaned.slice(1) : '';
-}
-
-function firstSentences(text: string, maxChars: number): string {
-  if (text.length <= maxChars) return text;
-  const cut = text.slice(0, maxChars);
-  const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('.\n'));
-  return end > maxChars * 0.4 ? cut.slice(0, end + 1) : `${cut.trimEnd()}…`;
-}
+// Categorisation (categorize / professionFrom / firstSentences) lives in
+// supabase/functions/_shared/wikidata.ts, shared with the discover-graves function.
 
 const normalizeName = (s: string) =>
   s
@@ -547,7 +412,7 @@ async function main() {
     const placeCoord = coordOf(place);
     const birth = parseTime(e, 'P569');
     const death = parseTime(e, 'P570');
-    if (!death.year || !diedLongEnoughAgo(death)) continue;
+    if (!death.year || !diedLongEnoughAgo(death, CUTOFF)) continue;
 
     const description = e.descriptions?.da?.value ?? e.descriptions?.en?.value ?? null;
     const title = e.sitelinks?.dawiki?.title ?? null;
@@ -592,8 +457,8 @@ async function main() {
     rows.push({
       wikidata_id: b.personId,
       name,
-      born: formatDanishDate(birth.iso) ?? (birth.year ? String(birth.year) : null),
-      died: formatDanishDate(death.iso) ?? String(death.year),
+      born: displayDate(birth),
+      died: displayDate(death),
       birth_date: birth.iso,
       death_date: death.iso,
       birth_year: birth.year,
@@ -610,6 +475,12 @@ async function main() {
       confidence,
       short_bio: shortBio,
       full_bio: extract ? firstSentences(extract, 1600) : shortBio,
+      // Everyone here is buried in Denmark; the Danish intro (when there is one) is the
+      // bio, so enrich-person leaves these rows alone. Without an intro, enrich-person may
+      // still find an article in another language the first time the person is opened.
+      country_code: 'DK',
+      bio_lang: extract ? 'da' : null,
+      enriched_at: extract ? TODAY.toISOString() : null,
       era: era.era,
       era_years: era.eraYears,
       time_window_title: era.timeWindowTitle,

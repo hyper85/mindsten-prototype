@@ -24,6 +24,9 @@ export interface PersonSource {
 /** How precise the stored coordinates are. */
 export type LocationPrecision = 'grave' | 'cemetery' | 'unknown';
 
+/** Which Tidsvindue a person gets: the Danish one, or world events only. */
+export type PersonRegion = 'dk' | 'world';
+
 export interface Person {
   id: number;
   name: string;
@@ -57,6 +60,13 @@ export interface Person {
   imageCredit: string | null;
   wikidataId: string | null;
   wikipediaUrl: string | null;
+  /** ISO 3166-1 alpha-2 of the grave's country; null means Denmark (legacy rows). */
+  countryCode: string | null;
+  /** ISO 639-1 of the Wikipedia the bio was taken from; null = no bio fetched. */
+  bioLang: string | null;
+  /** False for a discovered person whose Wikipedia bio hasn't been fetched yet. */
+  enriched: boolean;
+  region: PersonRegion;
 }
 
 export interface Cemetery {

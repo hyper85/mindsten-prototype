@@ -7,9 +7,16 @@ import { LargeTitle, Page, Section } from '../components/Layout';
 import { List, Row } from '../components/List';
 import { PersonRow } from '../components/PersonRow';
 import { EmptyState, LoadingState } from '../components/StatePanel';
-import { getNearbyPersons, getPersons, getRoutes, type NearbyPerson } from '../lib/api';
+import {
+  discoverNearby,
+  getNearbyPersons,
+  getPersons,
+  getRoutes,
+  type NearbyPerson,
+} from '../lib/api';
 import { formatToday, greeting } from '../lib/format';
-import { useGeolocation } from '../lib/geo';
+import { useGeolocation, type Coords } from '../lib/geo';
+import { isSupabaseConfigured } from '../lib/supabase';
 import type { Person, ThemedRoute } from '../types';
 import { useDocumentTitle } from '../lib/title';
 
@@ -24,6 +31,21 @@ function onThisDay(persons: Person[], today = new Date()) {
       hits.push({ person, label: `Døde i dag i ${person.deathYear}` });
   }
   return hits.slice(0, 3);
+}
+
+/** Graves within walking distance, else the nearest ones in the region, else nothing. */
+interface Nearby {
+  items: NearbyPerson[];
+  radius: 'close' | 'wide' | 'none';
+}
+
+const EMPTY_NEARBY: Nearby = { items: [], radius: 'none' };
+
+async function loadNearby(coords: Coords | null): Promise<Nearby> {
+  const close = await getNearbyPersons(coords, 5, 2500);
+  if (close.length > 0 || !coords) return { items: close, radius: close.length ? 'close' : 'none' };
+  const wide = await getNearbyPersons(coords, 5, 25_000);
+  return wide.length > 0 ? { items: wide, radius: 'wide' } : EMPTY_NEARBY;
 }
 
 function LocationPrompt({ status, onLocate }: { status: string; onLocate: () => void }) {
@@ -58,7 +80,8 @@ function LocationPrompt({ status, onLocate }: { status: string; onLocate: () => 
 export function HomePage() {
   const navigate = useNavigate();
   const { coords, status, locate } = useGeolocation();
-  const [nearby, setNearby] = useState<NearbyPerson[] | null>(null);
+  const [nearby, setNearby] = useState<Nearby | null>(null);
+  const [discovering, setDiscovering] = useState(false);
   const [featured, setFeatured] = useState<Person[]>([]);
   const [routes, setRoutes] = useState<ThemedRoute[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -82,22 +105,40 @@ export function HomePage() {
 
   useEffect(() => {
     let cancelled = false;
-    getNearbyPersons(coords, 5, 2500)
-      .then((result) => !cancelled && setNearby(result))
-      .catch(() => !cancelled && setNearby([]));
+    const run = async () => {
+      const known = await loadNearby(coords).catch(() => EMPTY_NEARBY);
+      if (cancelled) return;
+      setNearby(known);
+      if (!coords || !isSupabaseConfigured) {
+        setDiscovering(false);
+        return;
+      }
+      // Then ask Wikidata for graves around here that we don't know yet.
+      setDiscovering(true);
+      const discovery = await discoverNearby(coords);
+      if (cancelled) return;
+      if (discovery.added > 0) {
+        const refreshed = await loadNearby(coords).catch(() => null);
+        if (cancelled) return;
+        if (refreshed) setNearby(refreshed);
+      }
+      setDiscovering(false);
+    };
+    void run();
     return () => {
       cancelled = true;
     };
   }, [coords]);
 
   const today = useMemo(() => onThisDay(featured), [featured]);
-  const first = nearby?.[0];
+  const first = nearby?.items[0];
   const here =
     first && first.distanceMeters !== null && first.distanceMeters < 600 ? first.person : null;
-  const nothingNearby = Boolean(coords && nearby && nearby.length === 0);
+  const nothingNearby = Boolean(coords && nearby && nearby.radius === 'none');
+  const searching = discovering && nearby !== null && nearby.items.length === 0;
   const list: NearbyPerson[] = nothingNearby
     ? featured.slice(0, 5).map((person) => ({ person, distanceMeters: null }))
-    : (nearby ?? []);
+    : (nearby?.items ?? []);
 
   if (error) {
     return (
@@ -135,7 +176,7 @@ export function HomePage() {
       </div>
 
       <Section
-        title={coords && !nothingNearby ? 'I nærheden' : 'Kendte grave'}
+        title={coords ? 'I nærheden' : 'Kendte grave'}
         action={
           <Link className="section-action" to="/map">
             Se kort
@@ -143,14 +184,20 @@ export function HomePage() {
           </Link>
         }
         footer={
-          nothingNearby
-            ? 'Der er ingen kendte grave lige her – her er nogle af de mest kendte.'
-            : undefined
+          searching
+            ? undefined
+            : nothingNearby
+              ? 'Der er ingen kendte grave lige her – her er nogle af de mest kendte.'
+              : nearby?.radius === 'wide'
+                ? 'Nærmeste kendte grave – op til 25 km væk'
+                : undefined
         }
       >
         {status !== 'ok' && <LocationPrompt status={status} onLocate={locate} />}
         {!nearby ? (
           <LoadingState />
+        ) : searching ? (
+          <LoadingState label="Søger efter kendte grave omkring dig…" />
         ) : (
           <List inset={72}>
             {list.map((n) => (

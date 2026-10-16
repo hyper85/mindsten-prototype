@@ -1,9 +1,30 @@
 ---
 name: import-persons
-description: Import or refresh people buried in Denmark from Wikidata and Danish Wikipedia into Supabase (scripts/import-wikidata.ts). Use when asked to add more persons, refresh data, change categorisation, debug the import workflow, or reason about data licensing/GDPR for person data.
+description: How MindSTEN gets its persons from Wikidata and Wikipedia - the monthly Denmark import (scripts/import-wikidata.ts) and the on-demand discovery of graves near any GPS position (discover-graves / enrich-person Edge Functions). Use when asked to add more persons, cover another country, refresh data, change categorisation, debug the import or discovery, or reason about data licensing/GDPR for person data.
 ---
 
-# Import persons from Wikidata
+# Persons from Wikidata
+
+Two paths fill the `persons` table; both keep the 10-year rule and never overwrite curated rows.
+
+## A. On-demand discovery (anywhere in the world)
+
+- `supabase/functions/discover-graves` (`POST {lat, lng}`): one SPARQL query
+  (`buildAroundQuery` in `_shared/wikidata.ts`) for notable humans (≥ 2 sitelinks) with a burial
+  place within 10 km, ordered by sitelinks. New persons are INSERTED with the Wikidata label and
+  description only (`enriched_at` null, `bio_lang` null); cemeteries are upserted with
+  `country_code`. Results are cached per 0.1° grid cell in `discovery_cells` for 30 days, so a
+  fresh cell costs one DB read. The Home screen and the map call it; `scan-gravestone` calls
+  `discoverAround()` before matching when the scan has coordinates.
+- `supabase/functions/enrich-person` (`POST {personId}`): the first time a discovered person is
+  opened, fetches the Wikipedia intro in the first language that has an article
+  (`wikipediaLanguagesFor(country)`: da → en → the country's languages), stores `bio_lang`,
+  `wikipedia_url`, birth/death places and sources, sets `enriched_at`. The UI shows the bio in its
+  language with a note; the AI guide answers in Danish.
+- Region: `country_code` 'DK'/null → Danish time window; anything else → world events only.
+- Danish keywords AND English keywords drive `categorize()`; occupations (P106 QIDs) are the fallback.
+
+## B. Monthly Denmark import
 
 `scripts/import-wikidata.ts` (run via `npm run import:wikidata`) does five phases:
 
