@@ -4,6 +4,11 @@ name: Discovery probe
 # query.wikidata.org and prints the result. Writes nothing; needs no secrets.
 
 on:
+  push:
+    paths:
+      - scripts/probe-points.txt
+      - scripts/discover-probe.ts
+      - .github/workflows/discovery-probe.yml
   workflow_dispatch:
     inputs:
       lat:
@@ -33,7 +38,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Probe
+      - name: Probe (manual position)
+        if: github.event_name == 'workflow_dispatch'
         env:
           LAT: ${{ inputs.lat }}
           LNG: ${{ inputs.lng }}
@@ -47,3 +53,14 @@ jobs:
             fi
           done
           npm run probe:discovery -- --lat "$LAT" --lng "$LNG" --radius "$RADIUS" --budget "$BUDGET"
+      - name: Probe (scripts/probe-points.txt)
+        if: github.event_name == 'push'
+        run: |
+          status=0
+          while read -r lat lng radius budget rest; do
+            case "$lat" in ''|\#*) continue ;; esac
+            echo "::group::$lat $lng ($rest)"
+            npm run probe:discovery -- --lat "$lat" --lng "$lng" --radius "$radius" --budget "$budget" || status=1
+            echo "::endgroup::"
+          done < scripts/probe-points.txt
+          exit $status

@@ -1,0 +1,6 @@
+# Positions the "Discovery probe" workflow queries on every push that changes this file.
+# lat lng radius_km budget_ms  # label
+47.4612 9.0453 10 20000  # Wil SG
+47.3769 8.5417 10 20000  # Zürich
+46.4628 6.8419 10 20000  # Vevey
+55.6761 12.5683 10 20000  # København
