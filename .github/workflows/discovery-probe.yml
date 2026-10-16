@@ -8,6 +8,7 @@ on:
     paths:
       - scripts/probe-points.txt
       - scripts/discover-probe.ts
+      - supabase/functions/_shared/wikidata.ts
       - .github/workflows/discovery-probe.yml
   workflow_dispatch:
     inputs:
