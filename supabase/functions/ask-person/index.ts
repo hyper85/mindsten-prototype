@@ -68,7 +68,7 @@ serve(async (req) => {
   const { data: person, error } = await sb
     .from('persons')
     .select(
-      'name, born, died, birth_year, death_year, birth_place, death_place, profession, cemetery, city, short_bio, full_bio, timeline_events(year, event, sort_order), person_sources(label, url, sort_order)',
+      'name, born, died, birth_year, death_year, birth_place, death_place, profession, cemetery, city, country_code, short_bio, full_bio, timeline_events(year, event, sort_order), person_sources(label, url, sort_order)',
     )
     .eq('id', personId)
     .maybeSingle();

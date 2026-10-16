@@ -28,11 +28,11 @@ export function AboutPage() {
             <ul>
               <li>
                 <strong>Wikidata</strong> (CC0) – navne, datoer, gravsteder og koordinater for
-                personer begravet i Danmark.
+                kendte personer med kendt gravsted – i Danmark og i resten af verden.
               </li>
               <li>
-                <strong>Wikipedia på dansk</strong> (CC BY-SA 4.0) – biografiernes indledninger, med
-                kildehenvisning på hver person.
+                <strong>Wikipedia</strong> (CC BY-SA 4.0) – biografiernes indledninger på dansk –
+                ellers engelsk eller landets sprog – med kildehenvisning på hver person.
               </li>
               <li>
                 <strong>Wikimedia Commons</strong> – portrætter under de licenser, der står på den

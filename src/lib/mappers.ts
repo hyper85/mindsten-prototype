@@ -4,6 +4,7 @@ import type {
   LocationPrecision,
   Person,
   PersonCategory,
+  PersonRegion,
   PersonSource,
   ThemedRoute,
   TimelineEvent,
@@ -38,6 +39,9 @@ export interface PersonRow {
   image_credit: string | null;
   wikidata_id: string | null;
   wikipedia_url: string | null;
+  country_code?: string | null;
+  bio_lang?: string | null;
+  enriched_at?: string | null;
   timeline_events?: TimelineEventRow[] | null;
   person_sources?: PersonSourceRow[] | null;
 }
@@ -86,7 +90,8 @@ export function mapPerson(row: PersonRow): Person {
     .sort((a, b) => a.sort_order - b.sort_order)
     .map((s) => ({ label: s.label, url: s.url }));
 
-  const derived = deriveEra(row.birth_year, row.death_year);
+  const region = regionFor(row.country_code);
+  const derived = deriveEra(row.birth_year, row.death_year, region, row.name);
 
   return {
     id: row.id,
@@ -123,9 +128,19 @@ export function mapPerson(row: PersonRow): Person {
     imageCredit: row.image_credit,
     wikidataId: row.wikidata_id,
     wikipediaUrl: row.wikipedia_url,
+    countryCode: row.country_code ?? null,
+    bioLang: row.bio_lang ?? null,
+    // Curated rows predate enrichment and never carry a timestamp — treat "unknown" as done.
+    enriched: row.enriched_at !== null,
+    region,
     timeline,
     sources,
   };
+}
+
+/** Denmark (or an unknown country) gets the Danish Tidsvindue; everywhere else, world events. */
+export function regionFor(countryCode: string | null | undefined): PersonRegion {
+  return !countryCode || countryCode.toUpperCase() === 'DK' ? 'dk' : 'world';
 }
 
 export function mapRoute(row: RouteRow): ThemedRoute {
@@ -159,4 +174,4 @@ export const PERSON_SELECT =
 
 /** Lighter select for lists and map pins (no long text). */
 export const PERSON_LIST_SELECT =
-  'id, name, born, died, birth_date, death_date, birth_year, death_year, birth_place, death_place, profession, cemetery, cemetery_id, city, lat, lng, location_precision, confidence, category, image_url, image_credit, wikidata_id, wikipedia_url';
+  'id, name, born, died, birth_date, death_date, birth_year, death_year, birth_place, death_place, profession, cemetery, cemetery_id, city, lat, lng, location_precision, confidence, category, image_url, image_credit, wikidata_id, wikipedia_url, country_code, bio_lang, enriched_at';

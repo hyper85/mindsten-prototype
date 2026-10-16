@@ -1,13 +1,15 @@
-import { LocateFixed, Search } from 'lucide-react';
+import { LocateFixed, Search, Sparkles } from 'lucide-react';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { List } from '../components/List';
 import type { MapBounds } from '../components/MapView';
 import { PersonRow } from '../components/PersonRow';
 import { LoadingState } from '../components/StatePanel';
-import { getPersons } from '../lib/api';
+import { discoverNearby, getPersons } from '../lib/api';
 import { CATEGORY_FILTERS } from '../lib/format';
 import { distanceMeters, useGeolocation, type Coords } from '../lib/geo';
+import { isSupabaseConfigured } from '../lib/supabase';
+import { showToast } from '../lib/toast';
 import type { CategoryFilter, Person } from '../types';
 import { useDocumentTitle } from '../lib/title';
 
@@ -35,6 +37,7 @@ export function MapPage() {
       : { center: DEFAULT_CENTER, zoom: 15 },
   );
   const [query, setQuery] = useState('');
+  const [discovering, setDiscovering] = useState(false);
 
   useDocumentTitle('Kort');
   useEffect(() => {
@@ -74,6 +77,26 @@ export function MapPage() {
       .sort((a, b) => a.d - b.d)
       .slice(0, 30);
   }, [filtered, bounds, view.center]);
+
+  /** Looks up notable graves around the map centre on Wikidata and adds them to the map. */
+  const discoverHere = async () => {
+    if (discovering) return;
+    setDiscovering(true);
+    try {
+      const center = bounds?.center ?? view.center;
+      const result = await discoverNearby(center);
+      if (result.status === 'skipped') {
+        showToast('Søgningen lykkedes ikke. Prøv igen om lidt.');
+      } else if (result.added > 0) {
+        setPersons(await getPersons());
+        showToast(result.added === 1 ? '1 ny grav fundet' : `${result.added} nye grave fundet`);
+      } else {
+        showToast('Ingen nye kendte grave lige her');
+      }
+    } finally {
+      setDiscovering(false);
+    }
+  };
 
   const sheetHeight = expanded ? '78%' : '38%';
   const shown = selected ?? inView.map(({ p }) => p);
@@ -139,15 +162,32 @@ export function MapPage() {
         </div>
       </div>
 
-      <button
-        type="button"
-        className="map-fab"
-        style={{ bottom: `calc(${sheetHeight} + 12px)` }}
-        aria-label="Vis min placering"
-        onClick={() => (coords ? setView({ center: coords, zoom: 16 }) : locate())}
-      >
-        <LocateFixed aria-hidden="true" />
-      </button>
+      <div className="map-actions" style={{ bottom: `calc(${sheetHeight} + 12px)` }}>
+        {isSupabaseConfigured && (
+          <button
+            type="button"
+            className="map-discover"
+            onClick={discoverHere}
+            disabled={discovering}
+            aria-busy={discovering}
+          >
+            {discovering ? (
+              <span className="spinner" aria-hidden="true" />
+            ) : (
+              <Sparkles aria-hidden="true" />
+            )}
+            {discovering ? 'Søger…' : 'Find kendte grave her'}
+          </button>
+        )}
+        <button
+          type="button"
+          className="map-fab"
+          aria-label="Vis min placering"
+          onClick={() => (coords ? setView({ center: coords, zoom: 16 }) : locate())}
+        >
+          <LocateFixed aria-hidden="true" />
+        </button>
+      </div>
 
       <div className="map-sheet" style={{ height: sheetHeight }}>
         <div className="map-sheet-head">

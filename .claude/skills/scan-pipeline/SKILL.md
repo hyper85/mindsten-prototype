@@ -16,6 +16,9 @@ description: How MindSTEN recognises a gravestone (camera → Claude vision → 
    OpenCode gateway, whichever key is set) with the image and a JSON schema
    (`is_gravestone`, `people[{name, birth_year, death_year}]`, `inscription`), effort `low`.
    The photo is never stored. The model's reading is shape-checked before matching.
+3b. **Discovery**: when the scan carries coordinates, `discoverAround()` (`_shared/discover.ts`)
+   first pulls notable graves within 10 km from Wikidata into `persons` (cached per grid cell for
+   30 days, 12 s budget, failures only logged) so matching also works outside Denmark.
 4. **SQL** (`match_gravestone`, current version in `supabase/migrations/0004_hardening.sql`,
    callable by the service role only): at most 5 names of 100 chars; candidates come from the
    trigram and year indexes; per person read off

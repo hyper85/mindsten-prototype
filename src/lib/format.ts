@@ -73,6 +73,28 @@ export function deriveEra(
 
 export { periodFor };
 
+function displayName(type: 'region' | 'language', code: string | null | undefined): string {
+  if (!code) return '';
+  try {
+    const name = new Intl.DisplayNames('da', { type }).of(
+      type === 'region' ? code.toUpperCase() : code.toLowerCase(),
+    );
+    return name && name !== code ? name : code;
+  } catch {
+    return code;
+  }
+}
+
+/** "CH" → "Schweiz" (Danish country name; the code itself when unknown). */
+export function countryName(code: string | null | undefined): string {
+  return displayName('region', code);
+}
+
+/** "en" → "engelsk" (Danish language name; the code itself when unknown). */
+export function languageName(code: string | null | undefined): string {
+  return displayName('language', code);
+}
+
 export const CATEGORY_META: Record<PersonCategory, { label: string }> = {
   writers: { label: 'Forfattere' },
   art: { label: 'Kunst' },

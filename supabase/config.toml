@@ -9,7 +9,7 @@ major_version = 17
 enabled = true
 sql_paths = ["./seed.sql"]
 
-# Both functions are called from the browser with the anon/publishable key.
+# All functions are called from the browser with the anon/publishable key.
 # They do their own input validation and per-IP rate limiting (rate_limits table).
 [functions.scan-gravestone]
 verify_jwt = false
@@ -18,4 +18,10 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.ask-person]
+verify_jwt = false
+
+[functions.discover-graves]
+verify_jwt = false
+
+[functions.enrich-person]
 verify_jwt = false

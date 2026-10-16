@@ -9,7 +9,7 @@ import {
   type PersonRow,
   type RouteRow,
 } from './mappers';
-import { getSupabase } from './supabase';
+import { getSupabase, type Backend } from './supabase';
 import type {
   Cemetery,
   EraStory,
@@ -26,6 +26,8 @@ const SIMULATED_LATENCY_MS = 150;
 const AI_TIMEOUT_MS = 130_000;
 // Lists change rarely; reuse them within a visit so back navigation is instant.
 const MEMO_TTL_MS = 5 * 60 * 1000;
+// Wikidata/Wikipedia lookups behind discover-graves and enrich-person.
+const DISCOVERY_TIMEOUT_MS = 20_000;
 
 function delay<T>(value: T, ms = SIMULATED_LATENCY_MS): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms));
@@ -130,7 +132,11 @@ export function getPersonById(id: number): Promise<Person | null> {
         .select(PERSON_SELECT)
         .eq('id', id)
         .maybeSingle();
-      if (!error) return data ? mapPerson(data as PersonRow) : null;
+      if (!error) {
+        if (!data) return null;
+        const row = data as PersonRow;
+        return mapPerson(row.enriched_at === null ? await enrichPerson(sb, row) : row);
+      }
       logSupabaseFallback('getPersonById', error);
     }
     const { PERSONS } = await loadFixtures();
@@ -138,6 +144,27 @@ export function getPersonById(id: number): Promise<Person | null> {
     if (sb && !person) throw new OfflineError();
     return delay(person);
   });
+}
+
+/**
+ * A discovered person is stored without a bio until someone opens them; the first visit
+ * asks enrich-person to fetch the Wikipedia intro. Falls back to the bare row on any failure.
+ */
+async function enrichPerson(sb: Backend, row: PersonRow): Promise<PersonRow> {
+  try {
+    const { data, error } = await sb.functions.invoke<{ person?: PersonRow; enriched?: boolean }>(
+      'enrich-person',
+      { body: { personId: row.id }, timeout: DISCOVERY_TIMEOUT_MS },
+    );
+    if (error || !data?.person) {
+      console.warn('[api] enrich-person failed', error);
+      return row;
+    }
+    return data.person;
+  } catch (err) {
+    console.warn('[api] enrich-person failed', err);
+    return row;
+  }
 }
 
 export async function getPersonsByIds(ids: number[]): Promise<Person[]> {
@@ -199,6 +226,43 @@ export async function getNearbyPersons(
     .filter((p) => p.distanceMeters <= radiusMeters)
     .sort((a, b) => a.distanceMeters - b.distanceMeters);
   return delay(withDistance.slice(0, limit));
+}
+
+export interface DiscoveryResult {
+  /** 'fresh': the area was discovered recently; 'skipped': no backend or the call failed. */
+  status: 'fresh' | 'discovered' | 'skipped';
+  added: number;
+}
+
+/**
+ * Asks discover-graves to look up notable graves near `coords` on Wikidata and cache them in
+ * the persons table. Never throws — discovery is a bonus on top of what we already know.
+ */
+export async function discoverNearby(coords: Coords): Promise<DiscoveryResult> {
+  const sb = getSupabase();
+  if (!sb) return { status: 'skipped', added: 0 };
+  try {
+    const { data, error } = await sb.functions.invoke<{
+      status?: 'fresh' | 'discovered';
+      added?: number;
+    }>('discover-graves', {
+      body: { lat: coords.lat, lng: coords.lng },
+      timeout: DISCOVERY_TIMEOUT_MS,
+    });
+    if (error || !data?.status) {
+      console.warn('[api] discover-graves failed', error);
+      return { status: 'skipped', added: 0 };
+    }
+    const added = Number(data.added) || 0;
+    if (added > 0) {
+      // New rows: let lists and the map pick them up on their next load.
+      for (const key of memoCache.keys()) if (key.startsWith('persons:')) memoCache.delete(key);
+    }
+    return { status: data.status, added };
+  } catch (err) {
+    console.warn('[api] discover-graves failed', err);
+    return { status: 'skipped', added: 0 };
+  }
 }
 
 export async function searchPersons(query: string, limit = 25): Promise<Person[]> {

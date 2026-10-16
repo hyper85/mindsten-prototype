@@ -352,7 +352,8 @@ export function ScannerPage() {
                 </div>
               )}
               <p className="sheet-text" style={{ marginBottom: 16 }}>
-                Vi dækker foreløbig kendte danskere. Tilføj graven, så den kommer med.
+                Vi dækker kendte personer med et registreret gravsted. Tilføj graven, så den kommer
+                med.
               </p>
               <button
                 type="button"

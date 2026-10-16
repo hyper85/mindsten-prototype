@@ -6,6 +6,7 @@
 // The photo is never stored.
 
 import { adminClient, checkRateLimits, numberEnv } from '../_shared/clients.ts';
+import { discoverAround } from '../_shared/discover.ts';
 import { generateJson, LlmRateLimitError } from '../_shared/llm.ts';
 import { clientIp, json, readJsonBody, serve } from '../_shared/http.ts';
 
@@ -135,6 +136,16 @@ serve(async (req) => {
     .filter((p) => p.name.length >= 2)
     .slice(0, 4);
   const isGravestone = reading.is_gravestone === true;
+
+  // The first scan in a new area fills the cache with the notable graves around the
+  // visitor (one Wikidata query per 0.1° cell per month). Never lets a scan fail.
+  if (isGravestone && lat !== null && lng !== null) {
+    try {
+      await discoverAround(sb, lat, lng, { budgetMs: 12_000 });
+    } catch (err) {
+      console.error('discovery skipped', err instanceof Error ? err.message : String(err));
+    }
+  }
 
   const best = new Map<number, MatchRow>();
   if (isGravestone) {

@@ -64,6 +64,12 @@ begin
   end;
 
   begin
+    perform 1 from discovery_cells;
+    raise exception 'anon could read discovery_cells';
+  exception when insufficient_privilege then null;
+  end;
+
+  begin
     perform * from match_gravestone(array['H C Andersen'], 1805, 1875);
     raise exception 'anon could execute match_gravestone';
   exception when insufficient_privilege then null;
@@ -181,6 +187,32 @@ begin
   assert v_count = 0, format('search_persons: "__" must not match everything (%s rows)', v_count);
   select count(*) into v_count from match_gravestone(array['%%']);
   assert v_count = 0, format('match_gravestone: "%%%%" must not match everything (%s rows)', v_count);
+
+  -- 0005_world: everything that existed before is Danish; discovered rows may be anywhere
+  -- and start without a Wikipedia bio (enriched_at null) until enrich-person fills it.
+  select * into v_person from persons where id = 1;
+  assert v_person.country_code = 'DK', format('H.C. Andersen should be in DK, got %s', v_person.country_code);
+  assert v_person.enriched_at is not null, 'curated persons must count as enriched';
+  assert v_person.bio_lang = 'da', format('curated bio_lang should be da, got %s', v_person.bio_lang);
+  assert (select country_code from cemeteries where id = 1) = 'DK', 'curated cemetery should be in DK';
+  insert into persons (name, category, cemetery, death_date, country_code, sitelinks, wikidata_id)
+  values ('Charlie Chaplin', 'stage', 'Cimetière de Corsier-sur-Vevey', '1977-12-25', 'CH', 180, 'Q882')
+  returning id into v_id;
+  select * into v_person from persons where id = v_id;
+  assert v_person.country_code = 'CH', 'country_code CH should be stored';
+  assert v_person.enriched_at is null, 'enriched_at must default to null';
+  assert v_person.bio_lang is null, 'bio_lang must default to null';
+  assert v_person.sitelinks = 180, 'sitelinks should be stored';
+  begin
+    insert into persons (name, category, cemetery, death_year, country_code)
+    values ('Forkert Landekode', 'other', '', 1900, 'Schweiz');
+    raise exception 'persons: a non-ISO country code was accepted';
+  exception when check_violation then null;
+  end;
+  insert into discovery_cells (cell, lat, lng, persons_added) values ('46.5,6.8', 46.4756, 6.8437, 1);
+  insert into discovery_cells (cell, lat, lng) values ('46.5,6.8', 46.4756, 6.8437)
+    on conflict (cell) do update set discovered_at = now(), persons_added = 2;
+  assert (select persons_added from discovery_cells where cell = '46.5,6.8') = 2, 'discovery_cells upsert';
 
   -- Only the first 5 names are used.
   select score into v_score

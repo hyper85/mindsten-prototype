@@ -97,10 +97,15 @@ export function buildEraSnapshot(
   if (region === 'world') {
     const centuries: EraPeriod[] = [];
     for (let c = Math.floor(from / 100) * 100; c <= to; c += 100) centuries.push(centuryPeriod(c));
+    // World events only; a detail that is about Denmark is dropped abroad.
     const events: LivedEvent[] = HISTORY_EVENTS.filter(
       (e) => e.scope === 'world' && e.year >= from && e.year <= to,
     )
-      .map((e) => ({ ...e, age: e.year - from }))
+      .map((e) => ({
+        ...e,
+        detail: e.detail && /danmark|dansk/i.test(e.detail) ? undefined : e.detail,
+        age: e.year - from,
+      }))
       .sort((a, b) => a.year - b.year);
     return {
       region,

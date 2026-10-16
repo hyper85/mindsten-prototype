@@ -2381,25 +2381,72 @@ a.row:active {
   padding: 0 12px 4px;
 }
 
-.map-fab {
+/* Floating controls above the sheet: "find graves here" (left) and the locate button (right). */
+.map-actions {
   position: absolute;
   right: 12px;
+  left: 12px;
   z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  pointer-events: none;
+  transition: bottom 0.3s var(--ease);
+}
+
+.map-actions > * {
+  pointer-events: auto;
+}
+
+.map-fab {
   display: grid;
   place-items: center;
   width: 46px;
   height: 46px;
+  margin-left: auto;
   border: 0;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.95);
   box-shadow: var(--shadow);
   color: var(--blue);
-  transition: bottom 0.3s var(--ease);
 }
 
 .map-fab svg {
   width: 22px;
   height: 22px;
+}
+
+.map-discover {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: var(--shadow);
+  color: var(--tint);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: transform 0.15s var(--ease);
+}
+
+.map-discover svg,
+.map-discover .spinner {
+  width: 18px;
+  height: 18px;
+}
+
+.map-discover:active {
+  transform: scale(0.98);
+}
+
+.map-discover:disabled {
+  opacity: 0.7;
+  pointer-events: none;
 }
 
 .map-sheet {

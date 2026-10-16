@@ -6,8 +6,10 @@
 årstal, finder personen og fortæller om både personen og **tiden, de levede i** — konger, krige,
 opfindelser, befolkningstal og hverdagsliv.
 
-Vi starter med kendte danskere: et kurateret sæt på 25 personer plus en automatisk import af alle
-personer med kendt gravsted i Danmark fra Wikidata og dansk Wikipedia.
+Appen virker i hele verden: et kurateret sæt på 25 kendte danskere, en import af alle personer med
+kendt gravsted i Danmark, og **opdagelse ud fra din position** — står du i Vevey eller Zürich, finder
+appen de kendte grave omkring dig i Wikidata, henter biografien fra Wikipedia (dansk, ellers engelsk
+eller landets sprog) og husker dem til næste gang.
 
 ## Funktioner
 
@@ -16,8 +18,8 @@ personer med kendt gravsted i Danmark fra Wikidata og dansk Wikipedia.
 | **Scan** | Kamera (eller foto-upload) → Claude læser stenen → match på navn, årstal og GPS → op til 5 kandidater med match-procent |
 | **Person** | Portræt, datoer, alder, fødested, biografi, tidslinje, "Vis vej" til graven, kilder, del/favorit |
 | **Spørg om …** | AI-guide: stil dine egne spørgsmål om personen og tiden (svar ud fra biografi og kuraterede fakta) |
-| **Tidsvindue** | Regenter i levetiden, begivenheder med personens alder, befolkningstal, hverdagsliv pr. periode + AI-fortælling om tiden (cachet) |
-| **Hjem** | Grave i nærheden (GPS), "På denne dag", temaruter |
+| **Tidsvindue** | Regenter i levetiden, begivenheder med personens alder, befolkningstal, hverdagsliv pr. periode + AI-fortælling om tiden (cachet). Uden for Danmark: verdensbegivenheder i personens levetid |
+| **Hjem** | Grave i nærheden (GPS) – i Danmark og i udlandet, "På denne dag", temaruter |
 | **Kort** | OpenStreetMap med alle kendte grave, kategorifiltre, grupperede markører pr. kirkegård |
 | **Søg** | Fejltolerant navnesøgning (ø/o, å/a …), kategorier, kirkegårde |
 | **Kirkegård / Rute** | Alle kendte grave på en kirkegård; temaruter med stop i rækkefølge |
@@ -48,6 +50,8 @@ Telefon (Vercel, React PWA)
         scan-gravestone  → Claude vision → match_gravestone()
         era-story        → Claude + kuraterede historiske fakta → cache
         ask-person       → »Spørg om …«: AI-guide om personen og tiden → cache
+        discover-graves  → Wikidata: kendte grave inden for 10 km af en position → persons (cache 30 dage)
+        enrich-person    → Wikipedia-biografi (da → en → landets sprog) første gang en person åbnes
 GitHub Actions
   ├─ CI: lint, typecheck, tests, build, Deno-check, SQL-tests på Postgres 16
   ├─ Deploy Supabase: migrationer + seed + functions + secrets

@@ -18,7 +18,7 @@ korte, levende tekster der lader en besøgende på en kirkegård opleve den tid,
 Regler:
 - Skriv på klart, varmt og respektfuldt dansk. Ingen sensationslyst, ingen spøg med døden.
 - Om personen selv må du KUN bruge de oplysninger, du får i beskeden. Opfind ikke citater, relationer eller begivenheder.
-- Om tiden må du bruge de givne fakta og almindeligt kendt, veldokumenteret danmarkshistorie. Undlad præcise tal, du ikke er sikker på.
+- Om tiden må du bruge de givne fakta og almindeligt kendt, veldokumenteret danmarkshistorie – eller, for personer begravet uden for Danmark, landets og verdens historie. Undlad præcise tal, du ikke er sikker på.
 - Forbind gerne personens liv med tiden: hvor gammel var personen, da noget skete?
 - Afsnittet "imagine" er en kort sansebeskrivelse i anden person ("Forestil dig …") af en almindelig dag i personens by og tid — tydeligt som en forestilling, ikke som fakta om personen.
 - Hold det kort: intro 2-3 sætninger, 3-4 afsnit á 2-4 sætninger.`;
@@ -71,7 +71,7 @@ serve(async (req) => {
   const { data: person, error } = await sb
     .from('persons')
     .select(
-      'id, name, birth_year, death_year, birth_place, death_place, profession, city, cemetery, short_bio, full_bio',
+      'id, name, birth_year, death_year, birth_place, death_place, profession, city, cemetery, country_code, short_bio, full_bio',
     )
     .eq('id', personId)
     .maybeSingle();
@@ -90,14 +90,15 @@ serve(async (req) => {
 
   const birthYear = person.birth_year ?? person.death_year - 60;
   const deathYear = person.death_year ?? person.birth_year + 60;
-  const snapshot = buildEraSnapshot(birthYear, deathYear);
+  const abroad = Boolean(person.country_code && person.country_code !== 'DK');
+  const snapshot = buildEraSnapshot(birthYear, deathYear, abroad ? 'world' : 'dk');
 
   const userPrompt = `Person:
 Navn: ${person.name}
 Levetid: ${person.birth_year ?? 'ukendt'}–${person.death_year ?? 'ukendt'}
 Fødested: ${person.birth_place ?? 'ukendt'} · Dødssted: ${person.death_place ?? 'ukendt'}
 Virke: ${person.profession || 'ukendt'}
-Begravet: ${person.cemetery || 'ukendt'}${person.city ? `, ${person.city}` : ''}
+Begravet: ${person.cemetery || 'ukendt'}${person.city ? `, ${person.city}` : ''}${abroad ? `\nBegravet i: ${person.country_code}` : ''}
 Biografi: ${person.full_bio || person.short_bio || '(ingen)'}
 
 Fakta om tiden (kurateret):

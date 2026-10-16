@@ -2,7 +2,9 @@
 
 Mobile-first PWA: point the phone at a gravestone → identify the person (Claude vision + fuzzy
 match on name, years and GPS) → biography + "Tidsvindue" (what Denmark was like while they lived).
-Starts with famous Danes (curated set + Wikidata import).
+Starts with famous Danes (curated set + Wikidata import) and works anywhere: graves near any GPS
+position are discovered on demand from Wikidata (`discover-graves`), bios fetched lazily from
+Wikipedia (`enrich-person`). UI stays Danish; abroad the Tidsvindue shows world events only.
 
 ## Stack
 
@@ -19,7 +21,10 @@ Starts with famous Danes (curated set + Wikidata import).
   (`src/lib/supabase.ts`) — don't import `@supabase/supabase-js` in `src/`.
 - `src/lib/pwa.ts` — service worker registration + auto-update; caching rules in `vite.config.ts`.
 - `supabase/functions/_shared/{history,era}.ts` — era dataset + engine, shared by web and Deno
-  (use `.ts` extensions in imports).
+  (use `.ts` extensions in imports). `buildEraSnapshot(birth, death, region)`: region `'dk'` for
+  persons buried in Denmark (`country_code` null/'DK'), `'world'` otherwise.
+- `supabase/functions/_shared/wikidata.ts` — pure Wikidata/Wikipedia helpers (SPARQL builder,
+  parsing, categorisation, 10-year rule) shared by the import script and the Edge Functions.
 - `supabase/migrations/` — idempotent SQL; add a new numbered file, never edit an applied one.
   `supabase/tests/` — plain-Postgres test harness (functions, RLS/grants, triggers).
 - `scripts/` — `generate-seed.ts`, `import-wikidata.ts` (run with `tsx`).

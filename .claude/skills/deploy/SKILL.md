@@ -12,7 +12,7 @@ unless the user explicitly provides tokens.
 | --- | --- | --- |
 | Web app (Vite + React PWA) | Vercel | Vercel Git integration on every push (preview per PR, production on `main`) |
 | Postgres schema + seed | Supabase | `.github/workflows/supabase-deploy.yml` (runs the CI workflow first, then `supabase db push --include-seed`) |
-| Edge Functions `scan-gravestone`, `era-story`, `ask-person` | Supabase | same workflow (`supabase functions deploy --use-api`) |
+| Edge Functions `scan-gravestone`, `era-story`, `ask-person`, `discover-graves`, `enrich-person` | Supabase | same workflow (`supabase functions deploy --use-api`) |
 | Wikidata import | GitHub Actions | `.github/workflows/import-data.yml` (monthly + manual) |
 
 ## First-time setup (the user does this — you guide)
@@ -47,7 +47,7 @@ unless the user explicitly provides tokens.
 - Open the Vercel URL on a phone. The scanner must *not* show "Demo-tilstand"; if it does,
   the `VITE_SUPABASE_*` vars were missing at build time.
 - Supabase → Table editor → `persons` has the 25 curated rows (+ imported rows).
-- Supabase → Edge Functions → all three functions listed; invoke logs show no `No model API key`.
+- Supabase → Edge Functions → all five functions listed; invoke logs show no `No model API key`.
   With OpenCode: `Model access is disabled` (403) or `model not found` in the function logs means
   `LLM_MODEL` must name a model your OpenCode Zen account can use (exact id from opencode.ai).
 - `select * from match_gravestone(array['H C Andersen'], 1805, 1875);` returns id 1 with score ≥ 90.
@@ -57,7 +57,8 @@ unless the user explicitly provides tokens.
 `LLM_MODEL` (default `claude-opus-5-5` with Anthropic, `glm-5.3-flash` with OpenCode), `LLM_VISION_MODEL`, `LLM_EXTRA_BODY` (JSON merged into OpenCode `/v1/chat/completions` requests, e.g. `{"thinking":{"type":"disabled"}}` when a reasoning model is too slow),
 `LLM_BASE_URL` (OpenCode gateway, default `https://opencode.ai/zen`), `SCAN_LIMIT_PER_HOUR` (40/IP), `SCAN_LIMIT_PER_DAY` (3000 total),
 `STORY_LIMIT_PER_HOUR` (20/IP), `STORY_LIMIT_PER_DAY` (1000 total), `ASK_LIMIT_PER_HOUR` (30/IP),
-`ASK_LIMIT_PER_DAY` (3000 total), `ALLOWED_ORIGINS` (comma-separated browser origins allowed to call
+`ASK_LIMIT_PER_DAY` (3000 total), `DISCOVER_LIMIT_PER_HOUR` (20/IP), `DISCOVER_LIMIT_PER_DAY` (400 total),
+`ENRICH_LIMIT_PER_HOUR` (60/IP), `ENRICH_LIMIT_PER_DAY` (2000 total), `ALLOWED_ORIGINS` (comma-separated browser origins allowed to call
 the functions, `*.vercel.app` style wildcards allowed; unset = any origin; others get 403),
 `ASK_SIGNING_KEY` (HMAC key for AI-guide answer signatures; defaults to the service role key).
 The deploy workflow passes `LLM_MODEL`, `ALLOWED_ORIGINS` and `ASK_SIGNING_KEY` through from GitHub
