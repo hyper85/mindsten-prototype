@@ -25,6 +25,9 @@ export const USER_AGENT =
   'MindSTEN/1.0 (https://github.com/hyper85/mindsten-prototype; grave discovery)';
 const SPARQL_URL = 'https://query.wikidata.org/sparql';
 const FRESH_MS = 30 * 24 * 3600 * 1000;
+// A cell that yielded nothing is retried after a day: Wikidata gains burial places all the
+// time, and a query that failed silently should not block an area for a month.
+const FRESH_EMPTY_MS = 24 * 3600 * 1000;
 const MIN_YEARS_DEAD = 10;
 
 export interface DiscoverOptions {
@@ -57,11 +60,11 @@ export function tenYearCutoff(now = new Date()): { cutoffIso: string; maxDeathYe
   };
 }
 
-/** True when the cell was discovered less than 30 days ago. */
+/** True when the cell was discovered less than 30 days ago (a day, if it found nothing). */
 export async function cellIsFresh(sb: SupabaseClient, cell: string): Promise<boolean> {
   const { data, error } = await sb
     .from('discovery_cells')
-    .select('discovered_at')
+    .select('discovered_at, persons_added')
     .eq('cell', cell)
     .maybeSingle();
   if (error) {
@@ -70,7 +73,8 @@ export async function cellIsFresh(sb: SupabaseClient, cell: string): Promise<boo
   }
   if (!data?.discovered_at) return false;
   const age = Date.now() - new Date(data.discovered_at as string).getTime();
-  return Number.isFinite(age) && age < FRESH_MS;
+  const ttl = Number(data.persons_added) > 0 ? FRESH_MS : FRESH_EMPTY_MS;
+  return Number.isFinite(age) && age < ttl;
 }
 
 async function fetchBindings(query: string, budgetMs: number): Promise<SparqlBinding[]> {

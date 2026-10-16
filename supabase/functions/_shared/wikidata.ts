@@ -130,6 +130,11 @@ const LABEL_LANGUAGES = 'da,en,de,fr,it,es,sv,nb,nl';
  * SPARQL for query.wikidata.org: humans with a burial place within `radiusKm` of the point,
  * one row per person (aggregated), most sitelinks first. Only deaths in or before
  * `maxDeathYear` (today − 10 years; the exact 10-year rule is applied when parsing).
+ *
+ * The inner query picks the `limit` best-known persons with as few joins as possible;
+ * labels, images, occupations and Wikipedia titles are only fetched for those. Joining
+ * everything first and limiting last took > 20 s around Copenhagen or Paris, where
+ * thousands of people are buried within 10 km.
  */
 export function buildAroundQuery(
   lat: number,
@@ -154,27 +159,33 @@ export function buildAroundQuery(
   (GROUP_CONCAT(DISTINCT ?occupation; separator=" ") AS ?occupations)
   (SAMPLE(?dawiki) AS ?dawikiTitle) (SAMPLE(?enwiki) AS ?enwikiTitle)
 WHERE {
-  SERVICE wikibase:around {
-    ?place wdt:P625 ?placeCoord .
-    bd:serviceParam wikibase:center "${point}"^^geo:wktLiteral ;
-                    wikibase:radius "${radius}" .
+  {
+    SELECT DISTINCT ?person ?place ?placeCoord ?sitelinks WHERE {
+      SERVICE wikibase:around {
+        ?place wdt:P625 ?placeCoord .
+        bd:serviceParam wikibase:center "${point}"^^geo:wktLiteral ;
+                        wikibase:radius "${radius}" .
+      }
+      ?person wdt:P119 ?place ;
+              wdt:P31 wd:Q5 ;
+              wdt:P570 ?deathDate ;
+              wikibase:sitelinks ?sitelinks .
+      FILTER(?sitelinks >= 2)
+      FILTER(YEAR(?deathDate) <= ${year})
+    }
+    ORDER BY DESC(?sitelinks)
+    LIMIT ${max}
   }
-  ?person p:P119 ?st .
-  ?st ps:P119 ?place .
-  ?person wdt:P31 wd:Q5 ;
-          wikibase:sitelinks ?sitelinks .
-  FILTER(?sitelinks >= 2)
   ?person p:P570/psv:P570 ?dv .
   ?dv wikibase:timeValue ?death ;
       wikibase:timePrecision ?deathPrec .
-  FILTER(YEAR(?death) <= ${year})
   OPTIONAL {
     ?person p:P569/psv:P569 ?bv .
     ?bv wikibase:timeValue ?birth ;
         wikibase:timePrecision ?birthPrec .
   }
   OPTIONAL { ?person wdt:P18 ?image . }
-  OPTIONAL { ?st pq:P625 ?graveCoord . }
+  OPTIONAL { ?person p:P119 ?st . ?st ps:P119 ?place ; pq:P625 ?graveCoord . }
   OPTIONAL { ?place wdt:P17 ?countryItem . ?countryItem wdt:P297 ?countryCode . }
   OPTIONAL { ?place wdt:P131 ?cityItem . }
   OPTIONAL { ?person wdt:P106 ?occupation . }

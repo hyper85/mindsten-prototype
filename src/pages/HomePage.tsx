@@ -12,6 +12,7 @@ import {
   getNearbyPersons,
   getPersons,
   getRoutes,
+  type DiscoveryResult,
   type NearbyPerson,
 } from '../lib/api';
 import { formatToday, greeting } from '../lib/format';
@@ -82,6 +83,7 @@ export function HomePage() {
   const { coords, status, locate } = useGeolocation();
   const [nearby, setNearby] = useState<Nearby | null>(null);
   const [discovering, setDiscovering] = useState(false);
+  const [discovery, setDiscovery] = useState<DiscoveryResult['status'] | null>(null);
   const [featured, setFeatured] = useState<Person[]>([]);
   const [routes, setRoutes] = useState<ThemedRoute[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -117,6 +119,7 @@ export function HomePage() {
       setDiscovering(true);
       const discovery = await discoverNearby(coords);
       if (cancelled) return;
+      setDiscovery(discovery.status);
       if (discovery.added > 0) {
         const refreshed = await loadNearby(coords).catch(() => null);
         if (cancelled) return;
@@ -187,7 +190,9 @@ export function HomePage() {
           searching
             ? undefined
             : nothingNearby
-              ? 'Der er ingen kendte grave lige her – her er nogle af de mest kendte.'
+              ? discovery === 'skipped'
+                ? 'Vi kunne ikke søge hos Wikidata lige nu – her er nogle af de mest kendte.'
+                : 'Wikidata kender ingen grave inden for 10 km herfra – her er nogle af de mest kendte.'
               : nearby?.radius === 'wide'
                 ? 'Nærmeste kendte grave – op til 25 km væk'
                 : undefined
