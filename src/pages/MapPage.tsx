@@ -1,5 +1,5 @@
 import { LocateFixed, Search, Sparkles } from 'lucide-react';
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { List } from '../components/List';
 import type { MapBounds } from '../components/MapView';
@@ -16,6 +16,30 @@ import { useDocumentTitle } from '../lib/title';
 const MapView = lazy(() => import('../components/MapView'));
 
 const DEFAULT_CENTER: Coords = { lat: 55.6905, lng: 12.5494 };
+/** How far the sheet looks for "Nærmeste kendte grave" when the view is empty. */
+const NEAREST_MAX_M = 50_000;
+
+function nearestDistance(persons: Person[], from: Coords): number | null {
+  let best: number | null = null;
+  for (const p of persons) {
+    if (p.lat === null || p.lng === null) continue;
+    const d = distanceMeters(from, { lat: p.lat, lng: p.lng });
+    if (best === null || d < best) best = d;
+  }
+  return best;
+}
+
+/**
+ * Zoom level at which a grave `distanceM` from the centre is still on screen: the map
+ * shows about 200 px from the centre to the nearest edge above the sheet, and a pixel
+ * covers 156543 · cos(lat) / 2^zoom metres (Web Mercator).
+ */
+function zoomToInclude(distanceM: number | null, lat: number): number {
+  if (distanceM === null || distanceM <= 300) return 16;
+  const metresPerPx = distanceM / 200;
+  const zoom = Math.floor(Math.log2((156_543 * Math.cos((lat * Math.PI) / 180)) / metresPerPx));
+  return Math.min(16, Math.max(10, zoom));
+}
 
 export function MapPage() {
   const navigate = useNavigate();
@@ -48,10 +72,18 @@ export function MapPage() {
     };
   }, []);
 
-  // Jump to the visitor once their position arrives.
+  // Jump to the visitor once their position and the persons have arrived, zoomed so the
+  // nearest known grave is on screen (a street-level view of a spot with no graves helps
+  // nobody). Done once; later pans and zooms are the visitor's.
+  const jumped = useRef(false);
   useEffect(() => {
-    if (coords && !hasFocus) setView({ center: coords, zoom: 16 });
-  }, [coords, hasFocus]);
+    if (!coords || hasFocus || !persons || jumped.current) return;
+    jumped.current = true;
+    setView({
+      center: coords,
+      zoom: zoomToInclude(nearestDistance(persons, coords), coords.lat),
+    });
+  }, [coords, hasFocus, persons]);
 
   const filtered = useMemo(
     () => (persons ?? []).filter((p) => filter === 'all' || p.category === filter),
@@ -98,8 +130,24 @@ export function MapPage() {
     }
   };
 
+  // Nothing in view: list the nearest known graves instead of an empty sheet.
+  const nearest = useMemo(() => {
+    if (inView.length > 0) return [];
+    const center = bounds?.center ?? view.center;
+    return filtered
+      .filter((p) => p.lat !== null && p.lng !== null)
+      .map((p) => ({
+        p,
+        d: distanceMeters(center, { lat: p.lat as number, lng: p.lng as number }),
+      }))
+      .filter(({ d }) => d <= NEAREST_MAX_M)
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 10)
+      .map(({ p }) => p);
+  }, [filtered, inView.length, bounds, view.center]);
+
   const sheetHeight = expanded ? '78%' : '38%';
-  const shown = selected ?? inView.map(({ p }) => p);
+  const shown = selected ?? (inView.length > 0 ? inView.map(({ p }) => p) : nearest);
   const title = selected
     ? selected.length === 1
       ? 'Valgt grav'
@@ -108,7 +156,9 @@ export function MapPage() {
       ? 'Indlæser…'
       : inView.length > 0
         ? `${inView.length} ${inView.length === 1 ? 'grav' : 'grave'} her`
-        : 'Ingen kendte grave her';
+        : nearest.length > 0
+          ? 'Nærmeste kendte grave'
+          : 'Ingen kendte grave her';
 
   return (
     <div className="map-page">
@@ -215,8 +265,11 @@ export function MapPage() {
                   key={p.id}
                   person={p}
                   distanceMeters={
-                    coords && p.lat !== null && p.lng !== null
-                      ? distanceMeters(coords, { lat: p.lat, lng: p.lng })
+                    p.lat !== null && p.lng !== null
+                      ? distanceMeters(coords ?? bounds?.center ?? view.center, {
+                          lat: p.lat,
+                          lng: p.lng,
+                        })
                       : null
                   }
                 />

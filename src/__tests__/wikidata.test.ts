@@ -214,8 +214,13 @@ describe('categorize / professionFrom', () => {
   });
 
   it('strips nationalities and parentheses', () => {
-    expect(professionFrom('Swiss painter (1853–1918)')).toBe('Painter');
-    expect(professionFrom('German-born theoretical physicist')).toBe('Theoretical physicist');
+    expect(professionFrom('Swiss painter (1853–1918)')).toBe('Maler');
+    expect(professionFrom('Swiss politician (1815-1861)')).toBe('Politiker');
+    expect(professionFrom('Irish novelist and poet (1882–1941)')).toBe('Romanforfatter og digter');
+    expect(professionFrom('Serbian mathematician and wife of Albert Einstein')).toBe(
+      'Matematiker og wife of Albert Einstein',
+    );
+    expect(professionFrom('German-born theoretical physicist')).toBe('Teoretisk fysiker');
     expect(professionFrom('dansk forfatter og digter')).toBe('Forfatter og digter');
     expect(professionFrom(null)).toBe('');
   });
