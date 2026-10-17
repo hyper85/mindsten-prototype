@@ -517,9 +517,77 @@ export function categorize(description: string | null, occupations: string[]): W
 
 // Leading nationality adjectives dropped from "dansk forfatter" / "Swiss painter".
 const NATIONALITIES =
-  /^(?:dansk|danske|dansk-norsk|norsk|svensk|tysk|finsk|islandsk|hollandsk|nederlandsk|fransk|italiensk|spansk|britisk|engelsk|amerikansk|østrigsk|schweizisk|polsk|russisk|Danish|Norwegian|Swedish|Finnish|Icelandic|German|Austrian|Swiss|French|Italian|Spanish|Portuguese|Dutch|Belgian|Flemish|British|English|Scottish|Irish|Welsh|American|Canadian|Australian|Russian|Polish|Czech|Hungarian|Greek|Turkish|Japanese|Chinese|Indian|Mexican|Brazilian|Argentine|Argentinian|Swiss-born|German-born|Austrian-born|French-born|American-born|Russian-born)(?:\s*[-–]\s*(?:born|American|British|French|German|Swiss|Danish))?\s+/i;
+  /^(?:dansk|danske|dansk-norsk|norsk|svensk|tysk|finsk|islandsk|hollandsk|nederlandsk|fransk|italiensk|spansk|britisk|engelsk|amerikansk|østrigsk|schweizisk|polsk|russisk|Danish|Norwegian|Swedish|Finnish|Icelandic|German|Austrian|Swiss|French|Italian|Spanish|Portuguese|Dutch|Belgian|Flemish|British|English|Scottish|Irish|Welsh|American|Canadian|Australian|Russian|Polish|Czech|Slovak|Hungarian|Romanian|Bulgarian|Serbian|Croatian|Slovenian|Ukrainian|Estonian|Latvian|Lithuanian|Georgian|Greek|Turkish|Japanese|Chinese|Indian|Mexican|Brazilian|Argentine|Argentinian|Swiss-born|German-born|Austrian-born|French-born|American-born|Russian-born)(?:\s*[-–]\s*(?:born|American|British|French|German|Swiss|Danish))?\s+/i;
 
-/** "dansk forfatter (1805-1875)" → "Forfatter"; "Swiss painter" → "Painter". */
+/** Danish words for the English occupation terms Wikidata descriptions use most. */
+const PROFESSIONS_DA: Record<string, string> = {
+  and: 'og',
+  actor: 'skuespiller',
+  actress: 'skuespiller',
+  architect: 'arkitekt',
+  artist: 'kunstner',
+  astronomer: 'astronom',
+  author: 'forfatter',
+  biologist: 'biolog',
+  businessman: 'forretningsmand',
+  businesswoman: 'forretningskvinde',
+  chemist: 'kemiker',
+  comedian: 'komiker',
+  composer: 'komponist',
+  conductor: 'dirigent',
+  critic: 'kritiker',
+  dancer: 'danser',
+  diplomat: 'diplomat',
+  director: 'instruktør',
+  dramatist: 'dramatiker',
+  economist: 'økonom',
+  editor: 'redaktør',
+  engineer: 'ingeniør',
+  entrepreneur: 'iværksætter',
+  explorer: 'opdagelsesrejsende',
+  filmmaker: 'filmskaber',
+  historian: 'historiker',
+  industrialist: 'industrimand',
+  inventor: 'opfinder',
+  journalist: 'journalist',
+  judge: 'dommer',
+  lawyer: 'advokat',
+  linguist: 'sprogforsker',
+  mathematician: 'matematiker',
+  musician: 'musiker',
+  novelist: 'romanforfatter',
+  officer: 'officer',
+  painter: 'maler',
+  philosopher: 'filosof',
+  photographer: 'fotograf',
+  physician: 'læge',
+  physicist: 'fysiker',
+  pianist: 'pianist',
+  playwright: 'dramatiker',
+  poet: 'digter',
+  politician: 'politiker',
+  priest: 'præst',
+  psychiatrist: 'psykiater',
+  psychoanalyst: 'psykoanalytiker',
+  psychologist: 'psykolog',
+  publisher: 'forlægger',
+  scientist: 'videnskabsmand',
+  screenwriter: 'manuskriptforfatter',
+  sculptor: 'billedhugger',
+  singer: 'sanger',
+  soldier: 'soldat',
+  statesman: 'statsmand',
+  teacher: 'lærer',
+  theologian: 'teolog',
+  translator: 'oversætter',
+  writer: 'forfatter',
+};
+
+/**
+ * "dansk forfatter (1805-1875)" → "Forfatter"; "Swiss painter" → "Maler". Common English
+ * occupation words are translated (Wikidata only falls back to the English description when
+ * there is no Danish one); anything unknown is kept as is.
+ */
 export function professionFrom(description: string | null): string {
   if (!description) return '';
   const cleaned = description
@@ -527,7 +595,12 @@ export function professionFrom(description: string | null): string {
     .replace(NATIONALITIES, '')
     .replace(NATIONALITIES, '')
     .trim();
-  return cleaned ? cleaned.charAt(0).toUpperCase() + cleaned.slice(1) : '';
+  if (!cleaned) return '';
+  const translated = cleaned
+    .split(/(\s+|,)/)
+    .map((part) => PROFESSIONS_DA[part.toLowerCase()] ?? part)
+    .join('');
+  return translated.charAt(0).toUpperCase() + translated.slice(1);
 }
 
 /** Cuts a text at a sentence boundary before `maxChars` (or adds an ellipsis). */
