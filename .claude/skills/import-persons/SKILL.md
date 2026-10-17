@@ -11,7 +11,10 @@ Two paths fill the `persons` table; both keep the 10-year rule and never overwri
 
 - `supabase/functions/discover-graves` (`POST {lat, lng}`): one SPARQL query
   (`buildAroundQuery` in `_shared/wikidata.ts`) for notable humans (≥ 2 sitelinks) with a burial
-  place within 10 km, ordered by sitelinks. New persons are INSERTED with the Wikidata label and
+  place within 10 km, ordered by sitelinks; when that finds fewer than 5 persons and ≥ 8 s of
+  the budget is left, a second query widens to 25 km (rural Wil SG: 1 person within 10 km,
+  76 within 25; the 25 km query takes 6–13 s and is simply abandoned when the budget runs out,
+  keeping the 10 km results). New persons are INSERTED with the Wikidata label and
   description only (`enriched_at` null, `bio_lang` null); cemeteries are upserted with
   `country_code`. Results are cached per 0.1° grid cell in `discovery_cells` for 30 days (one
   day when nothing was found), so a fresh cell costs one DB read. The Home screen and the map

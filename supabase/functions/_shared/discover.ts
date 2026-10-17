@@ -33,15 +33,27 @@ const MIN_YEARS_DEAD = 10;
 export interface DiscoverOptions {
   /** Re-query even if the cell was discovered less than 30 days ago. */
   force?: boolean;
-  /** Wall-clock budget for the SPARQL request. */
+  /** Wall-clock budget for the SPARQL request(s). */
   budgetMs?: number;
   radiusKm?: number;
+  /**
+   * When the first query finds fewer than `minCandidates` persons, search again within
+   * this radius if at least WIDEN_MIN_MS of the budget is left (0 = never widen). Rural
+   * areas often have one or two recorded graves within 10 km and dozens within 25.
+   */
+  widenToKm?: number;
+  minCandidates?: number;
   limit?: number;
 }
+
+/** A widened search needs this much budget left; Wikidata takes 6–13 s for 25 km. */
+const WIDEN_MIN_MS = 8_000;
 
 export interface DiscoverResult {
   cell: string;
   status: 'fresh' | 'discovered';
+  /** Radius of the last query that ran (km); 0 for a fresh cell. */
+  radiusKm: number;
   /** Persons inserted by this call. */
   added: number;
   /** Persons the query returned (after the 10-year rule), including ones we already had. */
@@ -295,23 +307,61 @@ export async function discoverAround(
   sb: SupabaseClient,
   lat: number,
   lng: number,
-  { force = false, budgetMs = 20_000, radiusKm = 10, limit = 80 }: DiscoverOptions = {},
+  {
+    force = false,
+    budgetMs = 20_000,
+    radiusKm = 10,
+    widenToKm = 25,
+    minCandidates = 5,
+    limit = 80,
+  }: DiscoverOptions = {},
 ): Promise<DiscoverResult> {
   const cell = cellKey(lat, lng);
   if (!force && (await cellIsFresh(sb, cell))) {
-    return { cell, status: 'fresh', added: 0, candidates: 0 };
+    return { cell, status: 'fresh', radiusKm: 0, added: 0, candidates: 0 };
   }
 
   const { cutoffIso, maxDeathYear } = tenYearCutoff();
   const started = Date.now();
+  const deadline = started + budgetMs;
   const bindings = await fetchBindings(
     buildAroundQuery(lat, lng, radiusKm, maxDeathYear, limit),
     budgetMs,
   );
-  const candidates = parseDiscoveryBindings(bindings, cutoffIso, maxDeathYear);
+  let candidates = parseDiscoveryBindings(bindings, cutoffIso, maxDeathYear);
+  let radiusUsed = radiusKm;
   console.log(
-    `discovery ${cell}: ${bindings.length} rows, ${candidates.length} candidates in ${Date.now() - started} ms`,
+    `discovery ${cell}: ${bindings.length} rows, ${candidates.length} candidates within ${radiusKm} km in ${Date.now() - started} ms`,
   );
+
+  if (widenToKm > radiusKm && candidates.length < minCandidates) {
+    const remaining = deadline - Date.now();
+    if (remaining >= WIDEN_MIN_MS) {
+      const widenStarted = Date.now();
+      try {
+        const wide = await fetchBindings(
+          buildAroundQuery(lat, lng, widenToKm, maxDeathYear, limit),
+          remaining,
+        );
+        const byId = new Map(candidates.map((p) => [p.wikidataId, p]));
+        for (const p of parseDiscoveryBindings(wide, cutoffIso, maxDeathYear)) {
+          if (!byId.has(p.wikidataId)) byId.set(p.wikidataId, p);
+        }
+        candidates = [...byId.values()];
+        radiusUsed = widenToKm;
+        console.log(
+          `discovery ${cell}: widened to ${widenToKm} km → ${candidates.length} candidates in ${Date.now() - widenStarted} ms`,
+        );
+      } catch (err) {
+        // Keep what the first query found; the cell is retried after a day anyway.
+        console.warn(
+          `discovery ${cell}: widening to ${widenToKm} km failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    } else {
+      console.log(`discovery ${cell}: no budget left to widen (${remaining} ms)`);
+    }
+  }
 
   const known = await knownWikidataIds(
     sb,
@@ -343,5 +393,5 @@ export async function discoverAround(
   if (error) console.error('discovery_cells upsert failed', error.message);
 
   console.log(`discovery ${cell}: ${added} persons added (${known.size} already known)`);
-  return { cell, status: 'discovered', added, candidates: candidates.length };
+  return { cell, status: 'discovered', radiusKm: radiusUsed, added, candidates: candidates.length };
 }
