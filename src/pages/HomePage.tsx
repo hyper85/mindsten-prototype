@@ -120,7 +120,8 @@ export function HomePage() {
       const discovery = await discoverNearby(coords);
       if (cancelled) return;
       setDiscovery(discovery.status);
-      if (discovery.added > 0) {
+      if (discovery.status !== 'fresh') {
+        // Re-read even after a failed call: the server may have added rows before timing out.
         const refreshed = await loadNearby(coords).catch(() => null);
         if (cancelled) return;
         if (refreshed) setNearby(refreshed);

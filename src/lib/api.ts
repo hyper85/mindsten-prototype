@@ -28,6 +28,9 @@ const AI_TIMEOUT_MS = 130_000;
 const MEMO_TTL_MS = 5 * 60 * 1000;
 // Wikidata/Wikipedia lookups behind discover-graves and enrich-person.
 const DISCOVERY_TIMEOUT_MS = 20_000;
+// discover-graves may run two Wikidata queries (10 km, then 25 km) inside its own 20 s
+// budget, plus cold start and database writes: wait a little longer than the server does.
+const DISCOVER_CALL_TIMEOUT_MS = 30_000;
 
 function delay<T>(value: T, ms = SIMULATED_LATENCY_MS): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms));
@@ -238,29 +241,35 @@ export interface DiscoveryResult {
  * Asks discover-graves to look up notable graves near `coords` on Wikidata and cache them in
  * the persons table. Never throws — discovery is a bonus on top of what we already know.
  */
-export async function discoverNearby(coords: Coords): Promise<DiscoveryResult> {
+export async function discoverNearby(
+  coords: Coords,
+  { force = false }: { force?: boolean } = {},
+): Promise<DiscoveryResult> {
   const sb = getSupabase();
   if (!sb) return { status: 'skipped', added: 0 };
+  // The server may have inserted rows even when the call fails or times out on our side:
+  // let lists and the map re-read persons on their next load either way.
+  const forgetPersons = () => {
+    for (const key of memoCache.keys()) if (key.startsWith('persons:')) memoCache.delete(key);
+  };
   try {
     const { data, error } = await sb.functions.invoke<{
       status?: 'fresh' | 'discovered';
       added?: number;
     }>('discover-graves', {
-      body: { lat: coords.lat, lng: coords.lng },
-      timeout: DISCOVERY_TIMEOUT_MS,
+      body: { lat: coords.lat, lng: coords.lng, ...(force ? { force: true } : {}) },
+      timeout: DISCOVER_CALL_TIMEOUT_MS,
     });
     if (error || !data?.status) {
       console.warn('[api] discover-graves failed', error);
+      forgetPersons();
       return { status: 'skipped', added: 0 };
     }
-    const added = Number(data.added) || 0;
-    if (added > 0) {
-      // New rows: let lists and the map pick them up on their next load.
-      for (const key of memoCache.keys()) if (key.startsWith('persons:')) memoCache.delete(key);
-    }
-    return { status: data.status, added };
+    if (data.status === 'discovered') forgetPersons();
+    return { status: data.status, added: Number(data.added) || 0 };
   } catch (err) {
     console.warn('[api] discover-graves failed', err);
+    forgetPersons();
     return { status: 'skipped', added: 0 };
   }
 }
