@@ -1,9 +1,9 @@
 # Positions the "Discovery probe" workflow queries on every push that changes this file.
-# lat lng radius_km budget_ms  # label
-47.4612 9.0453 10 20000  # Wil SG
-47.3769 8.5417 10 20000  # Zürich
-46.4628 6.8419 10 20000  # Vevey
-55.6761 12.5683 10 20000  # København
-48.8566 2.3522 10 20000  # Paris
-51.5074 -0.1278 10 20000  # London
-52.5200 13.4050 10 20000  # Berlin
+# lat lng radius_km budget_ms min_sitelinks  # label
+47.4612 9.0453 10 20000 2  # Wil SG — current rules
+47.4612 9.0453 10 20000 1  # Wil SG — one Wikipedia article is enough
+47.4612 9.0453 25 20000 2  # Wil SG — 25 km
+47.4612 9.0453 25 20000 1  # Wil SG — 25 km, one article
+47.3769 8.5417 10 20000 1  # Zürich — one article
+55.6761 12.5683 10 20000 1  # København — one article (speed check)
+48.8566 2.3522 10 20000 1  # Paris — one article (speed check)

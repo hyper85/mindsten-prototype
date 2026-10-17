@@ -192,7 +192,7 @@ export function HomePage() {
             : nothingNearby
               ? discovery === 'skipped'
                 ? 'Vi kunne ikke søge hos Wikidata lige nu – her er nogle af de mest kendte.'
-                : 'Wikidata kender ingen grave inden for 10 km herfra – her er nogle af de mest kendte.'
+                : 'Wikidata kender ingen grave inden for 25 km herfra – her er nogle af de mest kendte.'
               : nearby?.radius === 'wide'
                 ? 'Nærmeste kendte grave – op til 25 km væk'
                 : undefined

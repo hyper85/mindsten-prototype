@@ -24,6 +24,7 @@ const lng = Number(opt('lng', ''));
 const radiusKm = Number(opt('radius', '10'));
 const limit = Number(opt('limit', '80'));
 const budgetMs = Number(opt('budget', '20000'));
+const minSitelinks = Number(opt('min-sitelinks', '2'));
 if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
   console.error('usage: --lat <deg> --lng <deg> [--radius km] [--limit n] [--budget ms]');
   process.exit(2);
@@ -32,10 +33,10 @@ if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
 const now = new Date();
 const maxDeathYear = now.getUTCFullYear() - 10;
 const cutoffIso = isoDate(maxDeathYear, now.getUTCMonth() + 1, now.getUTCDate());
-const query = buildAroundQuery(lat, lng, radiusKm, maxDeathYear, limit);
+const query = buildAroundQuery(lat, lng, radiusKm, maxDeathYear, limit, minSitelinks);
 const url = `${SPARQL_URL}?format=json&query=${encodeURIComponent(query)}`;
 
-console.log(`probe ${lat},${lng} radius ${radiusKm} km, budget ${budgetMs} ms, URL ${url.length} chars`);
+console.log(`probe ${lat},${lng} radius ${radiusKm} km, ≥ ${minSitelinks} sitelinks, budget ${budgetMs} ms, URL ${url.length} chars`);
 const started = Date.now();
 let res: Response;
 try {
