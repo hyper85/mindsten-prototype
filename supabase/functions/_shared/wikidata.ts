@@ -578,6 +578,7 @@ const PROFESSIONS_DA: Record<string, string> = {
   soldier: 'soldat',
   statesman: 'statsmand',
   teacher: 'lærer',
+  theoretical: 'teoretisk',
   theologian: 'teolog',
   translator: 'oversætter',
   writer: 'forfatter',

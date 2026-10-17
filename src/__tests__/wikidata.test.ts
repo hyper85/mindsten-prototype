@@ -220,7 +220,7 @@ describe('categorize / professionFrom', () => {
     expect(professionFrom('Serbian mathematician and wife of Albert Einstein')).toBe(
       'Matematiker og wife of Albert Einstein',
     );
-    expect(professionFrom('German-born theoretical physicist')).toBe('Theoretical physicist');
+    expect(professionFrom('German-born theoretical physicist')).toBe('Teoretisk fysiker');
     expect(professionFrom('dansk forfatter og digter')).toBe('Forfatter og digter');
     expect(professionFrom(null)).toBe('');
   });
