@@ -1,4 +1,4 @@
-// POST { lat: number, lng: number }
+// POST { lat: number, lng: number, force?: boolean }  (force: re-query a fresh cell)
 // → { cell, status: 'fresh' | 'discovered', added, candidates }
 //
 // Finds notable graves near the visitor on Wikidata and caches them in the database
@@ -24,9 +24,12 @@ serve(async (req) => {
   const lng = validCoord(body.lng, 180);
   if (lat === null || lng === null) return json({ error: 'invalid_coords' }, 400);
 
+  const force = body.force === true;
   const sb = adminClient();
   const cell = cellKey(lat, lng);
-  if (await cellIsFresh(sb, cell)) return json({ cell, status: 'fresh', added: 0, candidates: 0 });
+  if (!force && (await cellIsFresh(sb, cell))) {
+    return json({ cell, status: 'fresh', radiusKm: 0, added: 0, candidates: 0 });
+  }
 
   const allowed = await checkRateLimits(
     sb,
@@ -38,7 +41,7 @@ serve(async (req) => {
   if (!allowed) return json({ error: 'rate_limited' }, 429);
 
   try {
-    return json(await discoverAround(sb, lat, lng, { budgetMs: BUDGET_MS }));
+    return json(await discoverAround(sb, lat, lng, { budgetMs: BUDGET_MS, force }));
   } catch (err) {
     if (err instanceof DiscoveryError) {
       console.error('discovery failed', err.message);

@@ -25,9 +25,11 @@ export const USER_AGENT =
   'MindSTEN/1.0 (https://github.com/hyper85/mindsten-prototype; grave discovery)';
 const SPARQL_URL = 'https://query.wikidata.org/sparql';
 const FRESH_MS = 30 * 24 * 3600 * 1000;
-// A cell that yielded nothing is retried after a day: Wikidata gains burial places all the
-// time, and a query that failed silently should not block an area for a month.
-const FRESH_EMPTY_MS = 24 * 3600 * 1000;
+// A cell with a thin result (fewer than FULL_CANDIDATES persons, e.g. a widened search that
+// ran out of time) is retried after a day: Wikidata gains burial places all the time, and a
+// query that failed silently should not block an area for a month.
+const FRESH_THIN_MS = 24 * 3600 * 1000;
+const FULL_CANDIDATES = 5;
 const MIN_YEARS_DEAD = 10;
 
 export interface DiscoverOptions {
@@ -72,11 +74,11 @@ export function tenYearCutoff(now = new Date()): { cutoffIso: string; maxDeathYe
   };
 }
 
-/** True when the cell was discovered less than 30 days ago (a day, if it found nothing). */
+/** True when the cell was discovered less than 30 days ago (a day, if the result was thin). */
 export async function cellIsFresh(sb: SupabaseClient, cell: string): Promise<boolean> {
   const { data, error } = await sb
     .from('discovery_cells')
-    .select('discovered_at, persons_added')
+    .select('discovered_at, candidates')
     .eq('cell', cell)
     .maybeSingle();
   if (error) {
@@ -85,7 +87,7 @@ export async function cellIsFresh(sb: SupabaseClient, cell: string): Promise<boo
   }
   if (!data?.discovered_at) return false;
   const age = Date.now() - new Date(data.discovered_at as string).getTime();
-  const ttl = Number(data.persons_added) > 0 ? FRESH_MS : FRESH_EMPTY_MS;
+  const ttl = Number(data.candidates) >= FULL_CANDIDATES ? FRESH_MS : FRESH_THIN_MS;
   return Number.isFinite(age) && age < ttl;
 }
 
@@ -387,7 +389,15 @@ export async function discoverAround(
   const { error } = await sb
     .from('discovery_cells')
     .upsert(
-      { cell, lat, lng, discovered_at: new Date().toISOString(), persons_added: added },
+      {
+        cell,
+        lat,
+        lng,
+        discovered_at: new Date().toISOString(),
+        persons_added: added,
+        candidates: candidates.length,
+        radius_km: radiusUsed,
+      },
       { onConflict: 'cell' },
     );
   if (error) console.error('discovery_cells upsert failed', error.message);

@@ -116,14 +116,17 @@ export function MapPage() {
     setDiscovering(true);
     try {
       const center = bounds?.center ?? view.center;
-      const result = await discoverNearby(center);
-      if (result.status === 'skipped') {
+      const result = await discoverNearby(center, { force: true });
+      const before = persons?.length ?? 0;
+      const refreshed = await getPersons();
+      setPersons(refreshed);
+      const added = Math.max(result.added, refreshed.length - before);
+      if (result.status === 'skipped' && added === 0) {
         showToast('Søgningen lykkedes ikke. Prøv igen om lidt.');
-      } else if (result.added > 0) {
-        setPersons(await getPersons());
-        showToast(result.added === 1 ? '1 ny grav fundet' : `${result.added} nye grave fundet`);
+      } else if (added > 0) {
+        showToast(added === 1 ? '1 ny grav fundet' : `${added} nye grave fundet`);
       } else {
-        showToast('Ingen nye kendte grave lige her');
+        showToast('Ingen nye kendte grave inden for 25 km');
       }
     } finally {
       setDiscovering(false);
