@@ -142,8 +142,10 @@ export function buildAroundQuery(
   radiusKm: number,
   maxDeathYear: number,
   limit: number,
+  minSitelinks = 2,
 ): string {
   const num = (v: number, digits: number) => Number(v.toFixed(digits)).toString();
+  const links = Math.max(1, Math.trunc(minSitelinks));
   const point = `Point(${num(lng, 5)} ${num(lat, 5)})`;
   const radius = num(Math.max(0.1, radiusKm), 2);
   const year = Math.trunc(maxDeathYear);
@@ -172,7 +174,7 @@ WITH {
     ?person wdt:P31 wd:Q5 .
     ?person wdt:P570 ?deathDate .
     ?person wikibase:sitelinks ?sitelinks .
-    FILTER(?sitelinks >= 2)
+    FILTER(?sitelinks >= ${links})
     FILTER(YEAR(?deathDate) <= ${year})
   }
   ORDER BY DESC(?sitelinks)
